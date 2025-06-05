@@ -25,6 +25,8 @@ import { useStorage, Product } from "@/contexts/storage-context" // Product 타�
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/components/ui/use-toast"
 
+// 라인 목록 상수 선언 (ReferenceError 방지)
+const ALL_LINES = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
 // 아이템 타입 정의
 const ItemTypes = {
@@ -1025,7 +1027,7 @@ export default function RackViewPage() {
               >
                 모든 라인
               </Button>
-              {["A", "B", "C", "D", "E", "F", "G", "H"].map((line) => (
+              {ALL_LINES.map((line) => (
                 <Button
                   key={line}
                   variant={activeLine === line ? "default" : "outline"}
@@ -1559,7 +1561,7 @@ export default function RackViewPage() {
                   onChange={(e) => setFormLine(e.target.value)}
                   className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {["A", "B", "C", "D", "E", "F", "G", "H"].map((line) => (
+                  {ALL_LINES.map((line) => (
                     <option key={line} value={line}>
                       {line} 라인
                     </option>
@@ -1594,7 +1596,7 @@ export default function RackViewPage() {
                   onChange={(e) => setBulkTargetLine(e.target.value)}
                   className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {["A", "B", "C", "D", "E", "F", "G", "H"].map((line) => (
+                  {ALL_LINES.map((line) => (
                     <option key={line} value={line}>
                       {line} 라인
                     </option>
