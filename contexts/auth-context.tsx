@@ -73,7 +73,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single();
 
         if (userFetchError) {
-          console.error("AuthProvider: updateUserProfile - Error fetching user data:", userFetchError.message);
+          // DB 권한 문제는 예상된 상황이므로 warning으로 처리
+          if (userFetchError.message.includes('permission denied')) {
+            console.warn("AuthProvider: Database not configured, using fallback admin user");
+          } else {
+            console.error("AuthProvider: updateUserProfile - Error fetching user data:", userFetchError.message);
+          }
           
           // 에러 발생 시 기본 관리자 사용자로 처리 (임시 해결책)
           const defaultUser: User = {
@@ -291,7 +296,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (signInError) {
-        console.error("AuthProvider: login - Error:", signInError.message);
+        // 인증 실패는 정상적인 사용자 입력 오류일 수 있으므로 레벨 조정
+        if (signInError.message.includes('Invalid login credentials')) {
+          console.warn("AuthProvider: login - Invalid credentials provided");
+        } else {
+          console.error("AuthProvider: login - Error:", signInError.message);
+        }
         setIsLoading(false);
         return false;
       }

@@ -240,7 +240,17 @@ export function StorageProvider({ children }: StorageProviderProps) {
         ].filter(Boolean);
 
         if (errors.length > 0) {
-          console.warn('Some DB queries failed, keeping existing local data:', errors);
+          // DB 권한 에러는 예상된 상황이므로 warning으로 처리
+          const hasPermissionErrors = errors.some(error => 
+            error?.message?.includes('permission denied')
+          );
+          
+          if (hasPermissionErrors) {
+            console.warn('StorageContext: Database not configured, using local storage fallback');
+          } else {
+            console.warn('StorageContext: Some DB queries failed, keeping existing local data:', errors);
+          }
+          
           // 에러가 있어도 기존 로컬 데이터 유지
           setLastRefreshState(Date.now());
           setIsLoadingState(false);
@@ -463,7 +473,12 @@ export function StorageProvider({ children }: StorageProviderProps) {
         }
         throw new Error('Failed to add product code: No data returned');
       } catch (dbError: any) {
-        console.warn('Database access failed, using local fallback:', dbError);
+        // DB 권한 에러는 예상된 상황이므로 간단한 메시지로 처리
+        if (dbError?.message?.includes('permission denied')) {
+          console.info('StorageContext: Using local storage for product code (DB not configured)');
+        } else {
+          console.warn('Database access failed, using local fallback:', dbError);
+        }
         
         // DB 접근 실패 시 로컬 상태로만 처리 (임시 해결책)
         const fallbackProductCode: ProductCode = {
@@ -549,7 +564,12 @@ export function StorageProvider({ children }: StorageProviderProps) {
         }
         throw new Error('Failed to add category: No data returned');
       } catch (dbError: any) {
-        console.warn('Database access failed for category, using local fallback:', dbError);
+        // DB 권한 에러는 예상된 상황이므로 간단한 메시지로 처리
+        if (dbError?.message?.includes('permission denied')) {
+          console.info('StorageContext: Using local storage for category (DB not configured)');
+        } else {
+          console.warn('Database access failed for category, using local fallback:', dbError);
+        }
         
         // DB 접근 실패 시 로컬 상태로만 처리
         const fallbackCategory: Category = {
