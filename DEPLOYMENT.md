@@ -46,8 +46,8 @@ TAD STORY 냉동 창고 관리 시스템을 Supabase와 Vercel을 이용해 배�
 
 ```env
 # Supabase 설정
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
+NEXT_PUBLIC_SUPABASE_URL=https://ffpuyonlxnnjytnimwmg.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmcHV5b25seG5uanl0bmltd21nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5NjI2MjQsImV4cCI6MjA2MzUzODYyNH0.ZRdVu6dKjMDSINiMvCvItaahgpGSDK2GAzEN5JldiOw
 ```
 
 ### 3.2 의존성 설치 및 실행
@@ -71,7 +71,7 @@ git init
 git add .
 git commit -m "Initial commit"
 git branch -M main
-git remote add origin https://github.com/your-username/tadstory.git
+git remote add origin https://github.com/dmek2z/real-warehouse.git
 git push -u origin main
 ```
 

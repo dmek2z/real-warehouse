@@ -69,8 +69,8 @@ TAD STORY는 냉동 창고 내의 품목, 랙(보관 공간), 사용자, 입출�
 1. **환경 변수 설정**
    ```bash
    # .env.local 파일 생성
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   NEXT_PUBLIC_SUPABASE_URL=https://ffpuyonlxnnjytnimwmg.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmcHV5b25seG5uanl0bmltd21nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5NjI2MjQsImV4cCI6MjA2MzUzODYyNH0.ZRdVu6dKjMDSINiMvCvItaahgpGSDK2GAzEN5JldiOw
    ```
 
 2. **의존성 설치**
@@ -181,7 +181,7 @@ tadstory/
 ## 📞 지원
 
 배포 또는 사용 중 문제가 발생하면:
-- [Issues](https://github.com/your-username/tadstory/issues) 페이지에 문의
+- [Issues](https://github.com/dmek2z/real-warehouse/issues) 페이지에 문의
 - [DEPLOYMENT.md](./DEPLOYMENT.md) 문서 참고
 - [Supabase 문서](https://supabase.com/docs) 및 [Vercel 문서](https://vercel.com/docs) 참고
 
