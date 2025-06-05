@@ -646,14 +646,27 @@ export function StorageProvider({ children }: StorageProviderProps) {
       // 실제 API 호출 시 password는 제외하거나 별도 처리 필요.
       const { password, ...userToInsert } = user;
       const result = await apiAddUser(userToInsert as Omit<User, 'id' | 'password'>);
-       if (result && result.length > 0) {
-        // debouncedRefreshData();
+      if (result && result.length > 0) {
         return result[0];
       }
       throw new Error('Failed to add user: No data returned');
-    } catch (error) {
-      console.error('Error adding user:', error);
-      throw error;
+    } catch (dbError: any) {
+      // DB 실패 시 무조건 로컬 fallback
+      const fallbackUser: User = {
+        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        status: user.status,
+        permissions: user.permissions,
+      };
+      setUsers(prev => {
+        const newValue = [...prev, fallbackUser];
+        saveToLocalStorage('tad_users', newValue);
+        return newValue;
+      });
+      console.log('addUserToStorage: Added to local state only:', fallbackUser);
+      return fallbackUser;
     }
   };
 
