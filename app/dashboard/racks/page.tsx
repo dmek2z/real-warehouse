@@ -415,14 +415,13 @@ export default function RackViewPage() {
     } catch (error) {
         console.error("Error adding items to rack:", error);
         toast({ title: "품목 추가 실패", description: "품목을 랙에 추가하는 중 오류가 발생했습니다.", variant: "destructive" });
+    } finally {
+        setSearchProductQuery("");
+        setSelectedProductIds(new Set());
+        setSelectAllSearchProducts(false);
+        setSelectedFloor(1);
+        setIsAddItemDialogOpen(false);
     }
-
-
-    setSearchProductQuery("")
-    setSelectedProductIds(new Set())
-    setSelectAllSearchProducts(false)
-    setSelectedFloor(1)
-    setIsAddItemDialogOpen(false)
   }
 
 
@@ -562,7 +561,7 @@ export default function RackViewPage() {
     previewData.forEach((row) => {
         const line = row.라인 as string;
         const rackName = row.랙이름 as string;
-        const productCodeValue = row.품목코드 as string; // productCodeValue로 변경
+        const productCodeValue = String(row["품목코드"]); // productCodeValue로 변경
 
         let targetRack = racks.find((rack) => rack.name === rackName && rack.line === line);
 
@@ -803,26 +802,20 @@ export default function RackViewPage() {
     if (!formName.trim() || !hasPermission("racks", "edit")) return
 
     try {
-      const newRackData: Omit<ReturnType<typeof useStorage>['racks'][0], 'id'> = { // 타입 명시
+      const newRackData = {
         name: formName,
         products: [],
-        capacity: 100, // 기본값 또는 사용자 입력값
+        capacity: 100,
         line: formLine
-      }
-      await storageAddRack(newRackData)
-      toast({
-        title: "랙 추가 완료",
-        description: "새로운 랙이 추가되었습니다.",
-      })
-      setIsAddDialogOpen(false)
-      localResetForm() // resetForm을 localResetForm으로 변경
+      };
+      await storageAddRack(newRackData);
+      toast({ title: "랙 추가 완료", description: "새로운 랙이 추가되었습니다." });
+      localResetForm();
     } catch (error) {
-      console.error('Error adding rack:', error)
-      toast({
-        title: "랙 추가 실패",
-        description: "랙을 추가하는 중 오류가 발생했습니다.",
-        variant: "destructive",
-      })
+      console.error('Error adding rack:', error);
+      toast({ title: "랙 추가 실패", description: "랙을 추가하는 중 오류가 발생했습니다.", variant: "destructive" });
+    } finally {
+      setIsAddDialogOpen(false);
     }
   }
 
@@ -1190,7 +1183,7 @@ export default function RackViewPage() {
               ))}
             </div>
             {/* B&C라인 */}
-            <div className="flex space-x-2 ml-8">
+            <div className="flex gap-x-px ml-8">
               {Object.entries(racksByLine).filter(([line]) => line === "B" || line === "C").map(([line, racksInLine]) => (
                 <LineDropZone
                   key={line}
@@ -1220,7 +1213,7 @@ export default function RackViewPage() {
               ))}
             </div>
             {/* D&E라인 */}
-            <div className="flex space-x-2 ml-8">
+            <div className="flex gap-x-px ml-8">
               {Object.entries(racksByLine).filter(([line]) => line === "D" || line === "E").map(([line, racksInLine]) => (
                 <LineDropZone
                   key={line}
@@ -1250,7 +1243,7 @@ export default function RackViewPage() {
               ))}
             </div>
             {/* F&G라인 */}
-            <div className="flex space-x-2 ml-8">
+            <div className="flex gap-x-px ml-8">
               {Object.entries(racksByLine).filter(([line]) => line === "F" || line === "G").map(([line, racksInLine]) => (
                 <LineDropZone
                   key={line}
