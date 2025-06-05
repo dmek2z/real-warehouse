@@ -21,22 +21,15 @@ import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
-import { showToast } from "@/utils/toast-utils"
+import { useToast } from "@/components/ui/use-toast"
+import { useStorage } from "@/contexts/storage-context"
+import { useAuth } from "@/contexts/auth-context"
 
 // Types
 interface Permission {
   page: string
   view: boolean
   edit: boolean
-}
-
-interface UserType {
-  id: string
-  userId: string
-  name: string
-  password?: string
-  status: "active" | "inactive"
-  permissions: Permission[]
 }
 
 // 페이지 목록
@@ -79,69 +72,12 @@ const PERMISSION_TEMPLATES = [
   },
 ]
 
-// Mock data
-const generateMockUsers = (): UserType[] => {
-  const users: UserType[] = [
-    {
-      id: "user-1",
-      userId: "admin",
-      name: "홍길동",
-      status: "active",
-      permissions: PAGES.map((page) => ({
-        page: page.id,
-        view: true,
-        edit: true,
-      })),
-    },
-    // QA 테스트용 계정 추가
-    {
-      id: "user-test",
-      userId: "test@test.com",
-      name: "테스트 계정",
-      password: "123456", // 실제 서비스에서는 해싱 필요
-      status: "active",
-      permissions: PAGES.map((page) => ({
-        page: page.id,
-        view: true,
-        edit: true,
-      })),
-    },
-  ]
-
-  // Generate additional users
-  const firstNames = ["김", "이", "박", "최", "정", "강", "조", "윤", "장"]
-  const lastNames = ["민준", "서연", "예준", "지우", "도윤", "하은", "지호", "서현", "준서"]
-
-  for (let i = 2; i <= 10; i++) {
-    const firstName = firstNames[Math.floor(Math.random() * firstNames.length)]
-    const lastName = lastNames[Math.floor(Math.random() * lastNames.length)]
-    const fullName = firstName + lastName
-
-    const status = Math.random() > 0.2 ? "active" : "inactive"
-    const userId = `user${i}`
-
-    // Generate random permissions
-    const permissions = PAGES.map((page) => ({
-      page: page.id,
-      view: Math.random() > 0.2,
-      edit: Math.random() > 0.6,
-    }))
-
-    users.push({
-      id: `user-${i}`,
-      userId,
-      name: fullName,
-      status,
-      permissions,
-    })
-  }
-
-  return users
-}
-
 export default function UsersPage() {
-  // 사용자 목록 상태
-  const [userList, setUserList] = useState<UserType[]>([])
+  const { users, addUser, updateUser, deleteUser, isLoading } = useStorage()
+  const { hasPermission } = useAuth()
+  const { addToast } = useToast()
+
+  // 검색
   const [searchQuery, setSearchQuery] = useState("")
 
   // 다이얼로그 상태
@@ -151,52 +87,42 @@ export default function UsersPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   // 현재 선택된 사용자
-  const [currentUser, setCurrentUser] = useState<UserType | null>(null)
+  const [currentUser, setCurrentUser] = useState<typeof users[0] | null>(null)
 
   // 폼 상태
   const [activeTab, setActiveTab] = useState("basic")
   const [formName, setFormName] = useState("")
-  const [formUserId, setFormUserId] = useState("")
+  const [formEmail, setFormEmail] = useState("")
   const [formPassword, setFormPassword] = useState("")
-  const [formStatus, setFormStatus] = useState(true)
+  const [formRole, setFormRole] = useState("viewer")
   const [formPermissions, setFormPermissions] = useState<Permission[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState("")
 
   // 폼 오류
   const [formErrors, setFormErrors] = useState<{
     name?: string
-    userId?: string
+    email?: string
     password?: string
   }>({})
 
   // 폼 제출 시도 여부
   const [formSubmitAttempted, setFormSubmitAttempted] = useState(false)
 
-  // 초기 데이터 로드
-  useEffect(() => {
-    const initialUsers = generateMockUsers()
-    setUserList(initialUsers)
-
-    // 클라이언트 측에서만 실행
-    if (typeof window !== "undefined") {
-      // 로컬 스토리지에 사용자 정보 저장 (로그인 시스템 연동용)
-      localStorage.setItem("users", JSON.stringify(initialUsers))
-    }
-  }, [])
-
-  // 사용자 목록 변경 시 로컬 스토리지 업데이트
-  useEffect(() => {
-    if (userList.length > 0 && typeof window !== "undefined") {
-      localStorage.setItem("users", JSON.stringify(userList))
-    }
-  }, [userList])
+  // 필터링된 사용자 목록
+  const filteredUsers = users.filter(
+    (user) =>
+      searchQuery === "" ||
+      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.role.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   // 폼 초기화
   const resetForm = () => {
     setFormName("")
-    setFormUserId("")
+    setFormEmail("")
     setFormPassword("")
-    setFormStatus(true)
+    setFormRole("viewer")
     setFormPermissions(
       PAGES.map((page) => ({
         page: page.id,
@@ -212,21 +138,23 @@ export default function UsersPage() {
 
   // 사용자 추가 다이얼로그 열기
   const handleOpenAddDialog = () => {
+    if (!hasPermission("users", "edit")) return
     resetForm()
     setAddDialogOpen(true)
   }
 
   // 사용자 수정 다이얼로그 열기
-  const handleOpenEditDialog = (user: UserType) => {
+  const handleOpenEditDialog = (user: typeof users[0]) => {
+    if (!hasPermission("users", "edit")) return
     setCurrentUser(user)
 
     // 폼 데이터 설정
     setFormName(user.name)
-    setFormUserId(user.userId)
+    setFormEmail(user.email)
     setFormPassword("")
-    setFormStatus(user.status === "active")
+    setFormRole(user.role)
 
-    // 권한 데이터 깊은 복사 및 현재 페이지 목록에 맞게 필터링
+    // 권한 데이터 설정
     const permissionsCopy = user.permissions
       .filter((p) => PAGES.some((page) => page.id === p.page))
       .map((p) => ({ ...p }))
@@ -243,8 +171,6 @@ export default function UsersPage() {
     })
 
     setFormPermissions(permissionsCopy)
-
-    // 권한 템플릿 확인
     checkPermissionTemplate(permissionsCopy)
 
     setFormErrors({})
@@ -254,10 +180,11 @@ export default function UsersPage() {
   }
 
   // 권한 수정 다이얼로그 열기
-  const handleOpenPermissionsDialog = (user: UserType) => {
+  const handleOpenPermissionsDialog = (user: typeof users[0]) => {
+    if (!hasPermission("users", "edit")) return
     setCurrentUser(user)
 
-    // 권한 데이터 깊은 복사 및 현재 페이지 목록에 맞게 필터링
+    // 권한 데이터 설정
     const permissionsCopy = user.permissions
       .filter((p) => PAGES.some((page) => page.id === p.page))
       .map((p) => ({ ...p }))
@@ -274,15 +201,14 @@ export default function UsersPage() {
     })
 
     setFormPermissions(permissionsCopy)
-
-    // 권한 템플릿 확인
     checkPermissionTemplate(permissionsCopy)
 
     setPermissionsDialogOpen(true)
   }
 
   // 삭제 다이얼로그 열기
-  const handleOpenDeleteDialog = (user: UserType) => {
+  const handleOpenDeleteDialog = (user: typeof users[0]) => {
+    if (!hasPermission("users", "edit")) return
     setCurrentUser(user)
     setDeleteDialogOpen(true)
   }
@@ -313,7 +239,7 @@ export default function UsersPage() {
   const validateForm = (isEdit = false) => {
     const errors: {
       name?: string
-      userId?: string
+      email?: string
       password?: string
     } = {}
 
@@ -323,17 +249,17 @@ export default function UsersPage() {
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!formUserId.trim()) {
-      errors.userId = "이메일을 입력해주세요"
-    } else if (!emailRegex.test(formUserId)) {
-      errors.userId = "유효한 이메일 형식이 아닙니다"
+    if (!formEmail.trim()) {
+      errors.email = "이메일을 입력해주세요"
+    } else if (!emailRegex.test(formEmail)) {
+      errors.email = "유효한 이메일 형식이 아닙니다"
     } else {
       // 아이디 중복 검사 (수정 시 자기 자신은 제외)
-      const isDuplicate = userList.some(
-        (user) => user.userId === formUserId && (!isEdit || user.id !== currentUser?.id),
+      const isDuplicate = users.some(
+        (user) => user.email === formEmail && (!isEdit || user.id !== currentUser?.id),
       )
       if (isDuplicate) {
-        errors.userId = "이미 사용 중인 이메일입니다"
+        errors.email = "이미 사용 중인 이메일입니다"
       }
     }
 
@@ -374,7 +300,6 @@ export default function UsersPage() {
   const handleApplyTemplate = (templateId: string) => {
     const template = PERMISSION_TEMPLATES.find((t) => t.id === templateId)
     if (template) {
-      // 깊은 복사를 통해 템플릿 권한 복사
       const permissionsCopy = template.permissions.map((p) => ({ ...p }))
       setFormPermissions(permissionsCopy)
       setSelectedTemplate(templateId)
@@ -382,148 +307,158 @@ export default function UsersPage() {
   }
 
   // 사용자 추가
-  const handleAddUser = () => {
-    if (!validateForm()) return
+  const handleAddUser = async () => {
+    if (!validateForm() || !hasPermission("users", "edit")) return
 
-    const newUser: UserType = {
-      id: `user-${Date.now()}`,
-      userId: formUserId,
-      name: formName,
-      password: formPassword,
-      status: formStatus ? "active" : "inactive",
-      permissions: formPermissions,
+    try {
+      const newUser = {
+        email: formEmail,
+        name: formName,
+        role: formRole,
+        password: formPassword,
+        status: "active" as const,
+        permissions: formPermissions,
+      }
+
+      await addUser(newUser)
+      addToast({
+        title: "사용자 추가 완료",
+        description: `${newUser.name} 사용자가 추가되었습니다.`,
+      })
+      resetForm()
+      setAddDialogOpen(false)
+    } catch (error) {
+      console.error('Error adding user:', error)
+      addToast({
+        title: "사용자 추가 실패",
+        description: "사용자를 추가하는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
     }
-
-    setUserList((prev) => [...prev, newUser])
-    showToast(`${newUser.name} 사용자가 추가되었습니다.`, "success")
-    resetForm()
-    setAddDialogOpen(false)
   }
 
   // 사용자 수정
-  const handleUpdateUser = () => {
-    if (!validateForm(true) || !currentUser) return
+  const handleUpdateUser = async () => {
+    if (!validateForm(true) || !currentUser || !hasPermission("users", "edit")) return
 
-    // Create a deep copy of the permissions to ensure they're properly saved
-    const permissionsCopy = [...formPermissions.map((p) => ({ ...p }))]
-
-    const updatedUsers = userList.map((user) => {
-      if (user.id === currentUser.id) {
-        return {
-          ...user,
-          name: formName,
-          userId: formUserId,
-          ...(formPassword ? { password: formPassword } : {}),
-          status: formStatus ? "active" : "inactive",
-          permissions: permissionsCopy,
-        }
+    try {
+      const updates = {
+        name: formName,
+        email: formEmail,
+        role: formRole,
+        permissions: formPermissions,
+        ...(formPassword ? { password: formPassword } : {}),
       }
-      return user
-    })
 
-    setUserList(updatedUsers)
-    showToast(`${formName} 사용자 정보가 수정되었습니다.`, "success")
-    resetForm()
-    setCurrentUser(null)
-    setEditDialogOpen(false)
+      await updateUser(currentUser.id, updates)
+      addToast({
+        title: "사용자 수정 완료",
+        description: `${formName} 사용자 정보가 수정되었습니다.`,
+      })
+      resetForm()
+      setCurrentUser(null)
+      setEditDialogOpen(false)
+    } catch (error) {
+      console.error('Error updating user:', error)
+      addToast({
+        title: "사용자 수정 실패",
+        description: "사용자를 수정하는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    }
   }
 
   // 권한 수정
-  const handleUpdatePermissions = () => {
-    if (!currentUser) return
+  const handleUpdatePermissions = async () => {
+    if (!currentUser || !hasPermission("users", "edit")) return
 
-    const updatedUsers = userList.map((user) => {
-      if (user.id === currentUser.id) {
-        // 기존 권한 중 현재 페이지 목록에 없는 것들 유지
-        const existingPermissions = user.permissions.filter((p) => !PAGES.some((page) => page.id === p.page))
-
-        // 새 권한과 병합
-        const mergedPermissions = [...existingPermissions, ...formPermissions]
-
-        return {
-          ...user,
-          permissions: mergedPermissions,
-        }
-      }
-      return user
-    })
-
-    setUserList(updatedUsers)
-    showToast(`${currentUser.name} 사용자의 권한이 수정되었습니다.`, "success")
-    setCurrentUser(null)
-    setPermissionsDialogOpen(false)
+    try {
+      await updateUser(currentUser.id, { permissions: formPermissions })
+      addToast({
+        title: "권한 수정 완료",
+        description: `${currentUser.name} 사용자의 권한이 수정되었습니다.`,
+      })
+      setCurrentUser(null)
+      setPermissionsDialogOpen(false)
+    } catch (error) {
+      console.error('Error updating permissions:', error)
+      addToast({
+        title: "권한 수정 실패",
+        description: "권한을 수정하는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    }
   }
 
   // 사용자 삭제
-  const handleDeleteUser = () => {
-    if (!currentUser) return
+  const handleDeleteUser = async () => {
+    if (!currentUser || !hasPermission("users", "edit")) return
 
-    const updatedUsers = userList.filter((user) => user.id !== currentUser.id)
-    setUserList(updatedUsers)
-    showToast(`${currentUser.name} 사용자가 삭제되었습니다.`, "error")
-    setCurrentUser(null)
-    setDeleteDialogOpen(false)
+    try {
+      await deleteUser(currentUser.id)
+      addToast({
+        title: "사용자 삭제 완료",
+        description: `${currentUser.name} 사용자가 삭제되었습니다.`,
+        variant: "destructive",
+      })
+      setCurrentUser(null)
+      setDeleteDialogOpen(false)
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      addToast({
+        title: "사용자 삭제 실패",
+        description: "사용자를 삭제하는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    }
   }
 
   // 사용자 상태 토글
-  const handleToggleStatus = (user: UserType) => {
-    const updatedUsers = userList.map((u) => {
-      if (u.id === user.id) {
-        const newStatus = u.status === "active" ? "inactive" : "active"
-        return {
-          ...u,
-          status: newStatus,
-        }
-      }
-      return u
-    })
+  const handleToggleStatus = async (user: typeof users[0]) => {
+    if (!hasPermission("users", "edit")) return
 
-    setUserList(updatedUsers)
-
-    const updatedUser = updatedUsers.find((u) => u.id === user.id)
-
-    showToast(
-      `${updatedUser?.name} 사용자가 ${updatedUser?.status === "active" ? "활성화" : "비활성화"} 되었습니다.`,
-      "info",
-    )
+    try {
+      const newStatus = user.status === "active" ? "inactive" : "active"
+      await updateUser(user.id, { status: newStatus })
+      addToast({
+        title: "사용자 상태 변경",
+        description: `${user.name} 사용자가 ${newStatus === "active" ? "활성화" : "비활성화"} 되었습니다.`,
+      })
+    } catch (error) {
+      console.error('Error toggling user status:', error)
+      addToast({
+        title: "상태 변경 실패",
+        description: "사용자 상태를 변경하는 중 오류가 발생했습니다.",
+        variant: "destructive",
+      })
+    }
   }
 
   // 권한 요약 정보
-  const getPermissionSummary = (user: UserType) => {
-    // 현재 페이지 목록에 있는 권한만 필터링
+  const getPermissionSummary = (user: typeof users[0]) => {
     const currentPagePermissions = user.permissions.filter((p) => PAGES.some((page) => page.id === p.page))
-
     const viewCount = currentPagePermissions.filter((p) => p.view).length
     const editCount = currentPagePermissions.filter((p) => p.edit).length
 
     return (
       <div className="flex flex-wrap gap-1">
-        <Badge variant="outline" className="bg-blue-50">
-          보기: {viewCount}/{PAGES.length}
+        <Badge variant="secondary" className="text-xs">
+          보기 {viewCount}/{PAGES.length}
         </Badge>
-        <Badge variant="outline" className="bg-green-50">
-          편집: {editCount}/{PAGES.length}
+        <Badge variant="secondary" className="text-xs">
+          편집 {editCount}/{PAGES.length}
         </Badge>
       </div>
     )
   }
 
-  // 검색 필터링된 사용자 목록
-  const filteredUsers = userList.filter((user) => {
+  if (isLoading) {
     return (
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.userId.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  })
-
-  // 폼 오류 요약 메시지
-  const getFormErrorSummary = () => {
-    if (!formSubmitAttempted || Object.keys(formErrors).length === 0) return null
-
-    return (
-      <div className="flex items-center gap-2 mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600">
-        <AlertCircle className="h-5 w-5" />
-        <p>입력 정보에 오류가 있습니다. 위의 내용을 확인해주세요.</p>
+      <div className="flex h-64 items-center justify-center">
+        <div className="flex items-center gap-2">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"></div>
+          <span>사용자 정보를 불러오는 중...</span>
+        </div>
       </div>
     )
   }
@@ -535,8 +470,8 @@ export default function UsersPage() {
         <p className="text-muted-foreground">사용자 계정 및 권한 관리</p>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="relative w-full sm:w-96">
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+        <div className="relative w-full md:w-96">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
@@ -547,15 +482,16 @@ export default function UsersPage() {
           />
         </div>
 
-        <Button onClick={handleOpenAddDialog}>
-          <UserPlus className="mr-2 h-4 w-4" /> 사용자 추가
+        <Button onClick={handleOpenAddDialog} disabled={!hasPermission("users", "edit")}>
+          <UserPlus className="mr-2 h-4 w-4" />
+          사용자 추가
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>사용자</CardTitle>
-          <CardDescription>사용자 계정 및 권한 관리</CardDescription>
+          <CardTitle>사용자 목록</CardTitle>
+          <CardDescription>시스템 사용자 계정 및 권한 관리</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -565,56 +501,66 @@ export default function UsersPage() {
                 <TableHead>이메일</TableHead>
                 <TableHead>상태</TableHead>
                 <TableHead>권한</TableHead>
-                <TableHead className="w-[180px]">관리</TableHead>
+                <TableHead>관리</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="font-medium">{user.name}</div>
-                    </TableCell>
-                    <TableCell>{user.userId}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <div
-                          className={`mr-2 h-2 w-2 rounded-full ${user.status === "active" ? "bg-green-500" : "bg-gray-300"}`}
-                        />
-                        {user.status === "active" ? "활성" : "비활성"}
-                      </div>
-                    </TableCell>
-                    <TableCell>{getPermissionSummary(user)}</TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => handleOpenEditDialog(user)}>
-                          <Pencil className="h-4 w-4 mr-1" />
-                          수정
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleOpenPermissionsDialog(user)}>
-                          <Shield className="h-4 w-4 mr-1" />
-                          권한
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleOpenDeleteDialog(user)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          삭제
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-6">
-                    <div className="flex flex-col items-center justify-center">
-                      <User className="h-8 w-8 text-muted-foreground mb-2" />
-                      <p className="text-muted-foreground">사용자를 찾을 수 없습니다</p>
+              {filteredUsers.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span className="font-medium">{user.name}</span>
                     </div>
+                  </TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={user.status === "active"}
+                        onCheckedChange={() => handleToggleStatus(user)}
+                        disabled={!hasPermission("users", "edit")}
+                      />
+                      <Badge variant={user.status === "active" ? "default" : "secondary"}>
+                        {user.status === "active" ? "활성" : "비활성"}
+                      </Badge>
+                    </div>
+                  </TableCell>
+                  <TableCell>{getPermissionSummary(user)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenEditDialog(user)}
+                        disabled={!hasPermission("users", "edit")}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenPermissionsDialog(user)}
+                        disabled={!hasPermission("users", "edit")}
+                      >
+                        <Shield className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenDeleteDialog(user)}
+                        disabled={!hasPermission("users", "edit")}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredUsers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    {searchQuery ? "검색 결과가 없습니다." : "등록된 사용자가 없습니다."}
                   </TableCell>
                 </TableRow>
               )}
@@ -628,72 +574,84 @@ export default function UsersPage() {
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>새 사용자 추가</DialogTitle>
-            <DialogDescription>적절한 권한을 가진 새 사용자 계정 생성</DialogDescription>
+            <DialogDescription>
+              새 사용자 계정을 생성하고 권한을 설정하세요.
+            </DialogDescription>
           </DialogHeader>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="basic">기본 정보</TabsTrigger>
               <TabsTrigger value="permissions">권한 설정</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="basic" className="space-y-4 pt-4">
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">이름</Label>
-                    <Input
-                      id="name"
-                      value={formName}
-                      onChange={(e) => setFormName(e.target.value)}
-                      placeholder="사용자 이름"
-                      className={formErrors.name ? "border-red-500" : ""}
-                    />
-                    {formErrors.name && <p className="text-sm text-red-500">{formErrors.name}</p>}
-                  </div>
+            <TabsContent value="basic" className="space-y-4">
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="add-name">이름 *</Label>
+                  <Input
+                    id="add-name"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    className={formErrors.name && formSubmitAttempted ? "border-red-500" : ""}
+                  />
+                  {formErrors.name && formSubmitAttempted && (
+                    <p className="text-sm text-red-500">{formErrors.name}</p>
+                  )}
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="userId">이메일</Label>
-                    <Input
-                      id="userId"
-                      value={formUserId}
-                      onChange={(e) => setFormUserId(e.target.value)}
-                      placeholder="이메일 주소"
-                      className={formErrors.userId ? "border-red-500" : ""}
-                    />
-                    {formErrors.userId && <p className="text-sm text-red-500">{formErrors.userId}</p>}
-                  </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="add-email">이메일 *</Label>
+                  <Input
+                    id="add-email"
+                    type="email"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    className={formErrors.email && formSubmitAttempted ? "border-red-500" : ""}
+                  />
+                  {formErrors.email && formSubmitAttempted && (
+                    <p className="text-sm text-red-500">{formErrors.email}</p>
+                  )}
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password">비밀번호</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={formPassword}
-                      onChange={(e) => setFormPassword(e.target.value)}
-                      placeholder="비밀번호"
-                      className={formErrors.password ? "border-red-500" : ""}
-                    />
-                    {formErrors.password && <p className="text-sm text-red-500">{formErrors.password}</p>}
-                  </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="add-password">비밀번호 *</Label>
+                  <Input
+                    id="add-password"
+                    type="password"
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                    className={formErrors.password && formSubmitAttempted ? "border-red-500" : ""}
+                  />
+                  {formErrors.password && formSubmitAttempted && (
+                    <p className="text-sm text-red-500">{formErrors.password}</p>
+                  )}
+                </div>
 
-                  <div className="flex items-center space-x-2 pt-2">
-                    <Switch id="status" checked={formStatus} onCheckedChange={setFormStatus} />
-                    <Label htmlFor="status">계정 활성화</Label>
-                  </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="add-role">역할</Label>
+                  <select
+                    id="add-role"
+                    value={formRole}
+                    onChange={(e) => setFormRole(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  >
+                    <option value="viewer">뷰어</option>
+                    <option value="manager">매니저</option>
+                    <option value="admin">관리자</option>
+                  </select>
                 </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="permissions" className="space-y-4 pt-4">
+            <TabsContent value="permissions" className="space-y-4">
               <div className="space-y-4">
                 <div>
-                  <Label className="text-base">권한 템플릿</Label>
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <Label>권한 템플릿</Label>
+                  <div className="mt-2 flex gap-2">
                     {PERMISSION_TEMPLATES.map((template) => (
                       <Button
                         key={template.id}
-                        type="button"
                         variant={selectedTemplate === template.id ? "default" : "outline"}
                         size="sm"
                         onClick={() => handleApplyTemplate(template.id)}
@@ -704,64 +662,47 @@ export default function UsersPage() {
                   </div>
                 </div>
 
-                <Separator className="my-4" />
+                <Separator />
 
-                <div>
-                  <Label className="text-base mb-2 block">페이지별 권한</Label>
-                  <div className="border rounded-md">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>페이지</TableHead>
-                          <TableHead className="text-center">보기</TableHead>
-                          <TableHead className="text-center">편집</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {PAGES.map((page) => {
-                          const permission = formPermissions.find((p) => p.page === page.id)
-                          return (
-                            <TableRow key={page.id}>
-                              <TableCell>{page.name}</TableCell>
-                              <TableCell className="text-center">
-                                <Checkbox
-                                  checked={permission?.view || false}
-                                  onCheckedChange={(checked) =>
-                                    handlePermissionChange(page.id, "view", checked === true)
-                                  }
-                                />
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Checkbox
-                                  checked={permission?.edit || false}
-                                  disabled={!(permission?.view || false)}
-                                  onCheckedChange={(checked) =>
-                                    handlePermissionChange(page.id, "edit", checked === true)
-                                  }
-                                />
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-2">* 편집 권한을 부여하려면 보기 권한이 필요합니다</p>
+                <div className="space-y-4">
+                  <Label>페이지별 권한</Label>
+                  {PAGES.map((page) => {
+                    const permission = formPermissions.find((p) => p.page === page.id)
+                    return (
+                      <div key={page.id} className="flex items-center justify-between p-2 border rounded">
+                        <span>{page.name}</span>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`${page.id}-view`}
+                              checked={permission?.view || false}
+                              onCheckedChange={(checked) =>
+                                handlePermissionChange(page.id, "view", checked === true)
+                              }
+                            />
+                            <Label htmlFor={`${page.id}-view`}>보기</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`${page.id}-edit`}
+                              checked={permission?.edit || false}
+                              onCheckedChange={(checked) =>
+                                handlePermissionChange(page.id, "edit", checked === true)
+                              }
+                            />
+                            <Label htmlFor={`${page.id}-edit`}>편집</Label>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </TabsContent>
           </Tabs>
 
-          {getFormErrorSummary()}
-
-          <DialogFooter className="mt-6">
-            <Button
-              variant="outline"
-              onClick={() => {
-                resetForm()
-                setAddDialogOpen(false)
-              }}
-            >
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
               취소
             </Button>
             <Button onClick={handleAddUser}>사용자 추가</Button>
@@ -774,72 +715,84 @@ export default function UsersPage() {
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>사용자 정보 수정</DialogTitle>
-            <DialogDescription>사용자 정보 및 권한을 수정합니다</DialogDescription>
+            <DialogDescription>
+              사용자 정보를 수정하세요.
+            </DialogDescription>
           </DialogHeader>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="basic">기본 정보</TabsTrigger>
               <TabsTrigger value="permissions">권한 설정</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="basic" className="space-y-4 pt-4">
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-name">이름</Label>
-                    <Input
-                      id="edit-name"
-                      value={formName}
-                      onChange={(e) => setFormName(e.target.value)}
-                      placeholder="사용자 이름"
-                      className={formErrors.name ? "border-red-500" : ""}
-                    />
-                    {formErrors.name && <p className="text-sm text-red-500">{formErrors.name}</p>}
-                  </div>
+            <TabsContent value="basic" className="space-y-4">
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-name">이름 *</Label>
+                  <Input
+                    id="edit-name"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    className={formErrors.name && formSubmitAttempted ? "border-red-500" : ""}
+                  />
+                  {formErrors.name && formSubmitAttempted && (
+                    <p className="text-sm text-red-500">{formErrors.name}</p>
+                  )}
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-userId">이메일</Label>
-                    <Input
-                      id="edit-userId"
-                      value={formUserId}
-                      onChange={(e) => setFormUserId(e.target.value)}
-                      placeholder="이메일 주소"
-                      className={formErrors.userId ? "border-red-500" : ""}
-                    />
-                    {formErrors.userId && <p className="text-sm text-red-500">{formErrors.userId}</p>}
-                  </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-email">이메일 *</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    className={formErrors.email && formSubmitAttempted ? "border-red-500" : ""}
+                  />
+                  {formErrors.email && formSubmitAttempted && (
+                    <p className="text-sm text-red-500">{formErrors.email}</p>
+                  )}
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-password">비밀번호 (변경 시에만 입력)</Label>
-                    <Input
-                      id="edit-password"
-                      type="password"
-                      value={formPassword}
-                      onChange={(e) => setFormPassword(e.target.value)}
-                      placeholder="비밀번호를 변경하려면 입력하세요"
-                      className={formErrors.password ? "border-red-500" : ""}
-                    />
-                    {formErrors.password && <p className="text-sm text-red-500">{formErrors.password}</p>}
-                  </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-password">새 비밀번호 (변경 시에만 입력)</Label>
+                  <Input
+                    id="edit-password"
+                    type="password"
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                    placeholder="변경하지 않으려면 비워두세요"
+                  />
+                  {formErrors.password && formSubmitAttempted && (
+                    <p className="text-sm text-red-500">{formErrors.password}</p>
+                  )}
+                </div>
 
-                  <div className="flex items-center space-x-2 pt-2">
-                    <Switch id="edit-status" checked={formStatus} onCheckedChange={setFormStatus} />
-                    <Label htmlFor="edit-status">계정 활성화</Label>
-                  </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-role">역할</Label>
+                  <select
+                    id="edit-role"
+                    value={formRole}
+                    onChange={(e) => setFormRole(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                  >
+                    <option value="viewer">뷰어</option>
+                    <option value="manager">매니저</option>
+                    <option value="admin">관리자</option>
+                  </select>
                 </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="permissions" className="space-y-4 pt-4">
+            <TabsContent value="permissions" className="space-y-4">
               <div className="space-y-4">
                 <div>
-                  <Label className="text-base">권한 템플릿</Label>
-                  <div className="flex flex-wrap gap-2 mt-2">
+                  <Label>권한 템플릿</Label>
+                  <div className="mt-2 flex gap-2">
                     {PERMISSION_TEMPLATES.map((template) => (
                       <Button
                         key={template.id}
-                        type="button"
                         variant={selectedTemplate === template.id ? "default" : "outline"}
                         size="sm"
                         onClick={() => handleApplyTemplate(template.id)}
@@ -850,65 +803,47 @@ export default function UsersPage() {
                   </div>
                 </div>
 
-                <Separator className="my-4" />
+                <Separator />
 
-                <div>
-                  <Label className="text-base mb-2 block">페이지별 권한</Label>
-                  <div className="border rounded-md">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>페이지</TableHead>
-                          <TableHead className="text-center">보기</TableHead>
-                          <TableHead className="text-center">편집</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {PAGES.map((page) => {
-                          const permission = formPermissions.find((p) => p.page === page.id)
-                          return (
-                            <TableRow key={page.id}>
-                              <TableCell>{page.name}</TableCell>
-                              <TableCell className="text-center">
-                                <Checkbox
-                                  checked={permission?.view || false}
-                                  onCheckedChange={(checked) =>
-                                    handlePermissionChange(page.id, "view", checked === true)
-                                  }
-                                />
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Checkbox
-                                  checked={permission?.edit || false}
-                                  disabled={!(permission?.view || false)}
-                                  onCheckedChange={(checked) =>
-                                    handlePermissionChange(page.id, "edit", checked === true)
-                                  }
-                                />
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-2">* 편집 권한을 부여하려면 보기 권한이 필요합니다</p>
+                <div className="space-y-4">
+                  <Label>페이지별 권한</Label>
+                  {PAGES.map((page) => {
+                    const permission = formPermissions.find((p) => p.page === page.id)
+                    return (
+                      <div key={page.id} className="flex items-center justify-between p-2 border rounded">
+                        <span>{page.name}</span>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`edit-${page.id}-view`}
+                              checked={permission?.view || false}
+                              onCheckedChange={(checked) =>
+                                handlePermissionChange(page.id, "view", checked === true)
+                              }
+                            />
+                            <Label htmlFor={`edit-${page.id}-view`}>보기</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`edit-${page.id}-edit`}
+                              checked={permission?.edit || false}
+                              onCheckedChange={(checked) =>
+                                handlePermissionChange(page.id, "edit", checked === true)
+                              }
+                            />
+                            <Label htmlFor={`edit-${page.id}-edit`}>편집</Label>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </TabsContent>
           </Tabs>
 
-          {getFormErrorSummary()}
-
-          <DialogFooter className="mt-6">
-            <Button
-              variant="outline"
-              onClick={() => {
-                resetForm()
-                setCurrentUser(null)
-                setEditDialogOpen(false)
-              }}
-            >
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               취소
             </Button>
             <Button onClick={handleUpdateUser}>저장</Button>
@@ -918,20 +853,21 @@ export default function UsersPage() {
 
       {/* 권한 수정 다이얼로그 */}
       <Dialog open={permissionsDialogOpen} onOpenChange={setPermissionsDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>사용자 권한 수정</DialogTitle>
-            <DialogDescription>{currentUser?.name}의 페이지별 권한을 설정합니다</DialogDescription>
+            <DialogTitle>권한 수정</DialogTitle>
+            <DialogDescription>
+              {currentUser?.name} 사용자의 권한을 수정하세요.
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
+          <div className="space-y-4">
             <div>
-              <Label className="text-base">권한 템플릿</Label>
-              <div className="flex flex-wrap gap-2 mt-2">
+              <Label>권한 템플릿</Label>
+              <div className="mt-2 flex gap-2">
                 {PERMISSION_TEMPLATES.map((template) => (
                   <Button
                     key={template.id}
-                    type="button"
                     variant={selectedTemplate === template.id ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleApplyTemplate(template.id)}
@@ -942,54 +878,45 @@ export default function UsersPage() {
               </div>
             </div>
 
-            <Separator className="my-4" />
+            <Separator />
 
-            <div className="border rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>페이지</TableHead>
-                    <TableHead className="text-center">보기</TableHead>
-                    <TableHead className="text-center">편집</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {PAGES.map((page) => {
-                    const permission = formPermissions.find((p) => p.page === page.id)
-                    return (
-                      <TableRow key={page.id}>
-                        <TableCell>{page.name}</TableCell>
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={permission?.view || false}
-                            onCheckedChange={(checked) => handlePermissionChange(page.id, "view", checked === true)}
-                          />
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Checkbox
-                            checked={permission?.edit || false}
-                            disabled={!(permission?.view || false)}
-                            onCheckedChange={(checked) => handlePermissionChange(page.id, "edit", checked === true)}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+            <div className="space-y-4">
+              <Label>페이지별 권한</Label>
+              {PAGES.map((page) => {
+                const permission = formPermissions.find((p) => p.page === page.id)
+                return (
+                  <div key={page.id} className="flex items-center justify-between p-2 border rounded">
+                    <span>{page.name}</span>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`perm-${page.id}-view`}
+                          checked={permission?.view || false}
+                          onCheckedChange={(checked) =>
+                            handlePermissionChange(page.id, "view", checked === true)
+                          }
+                        />
+                        <Label htmlFor={`perm-${page.id}-view`}>보기</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`perm-${page.id}-edit`}
+                          checked={permission?.edit || false}
+                          onCheckedChange={(checked) =>
+                            handlePermissionChange(page.id, "edit", checked === true)
+                          }
+                        />
+                        <Label htmlFor={`perm-${page.id}-edit`}>편집</Label>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-            <p className="text-sm text-muted-foreground">* 편집 권한을 부여하려면 보기 권한이 필요합니다</p>
           </div>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                resetForm()
-                setCurrentUser(null)
-                setPermissionsDialogOpen(false)
-              }}
-            >
+            <Button variant="outline" onClick={() => setPermissionsDialogOpen(false)}>
               취소
             </Button>
             <Button onClick={handleUpdatePermissions}>권한 저장</Button>
@@ -997,23 +924,17 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 사용자 삭제 확인 다이얼로그 */}
+      {/* 삭제 확인 다이얼로그 */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>사용자 삭제</DialogTitle>
             <DialogDescription>
-              사용자 "{currentUser?.name}"을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.
+              {currentUser?.name} 사용자를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setCurrentUser(null)
-                setDeleteDialogOpen(false)
-              }}
-            >
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               취소
             </Button>
             <Button variant="destructive" onClick={handleDeleteUser}>

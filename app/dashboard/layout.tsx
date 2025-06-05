@@ -57,9 +57,13 @@ export default function DashboardLayout({
   }, [isInitialized, authIsLoading]);
 
   const accessibleNavItems = navItems.filter((item) => {
-    if (!isInitialized || authIsLoading) return false; // 초기화되지 않았거나 로딩 중에는 메뉴를 계산하지 않음
-    if (item.id === "settings") return !!user; 
-    return hasPermission(item.id, "view");
+    // 강제 표시 상태이거나 초기화가 완료되고 로딩이 끝났을 때만 권한 검사
+    if (forceShow || (isInitialized && !authIsLoading)) {
+      if (item.id === "settings") return !!user; 
+      return hasPermission(item.id, "view");
+    }
+    // 로딩 중이거나 초기화되지 않았으면 기본 메뉴들만 표시
+    return ["dashboard", "racks", "products"].includes(item.id);
   });
 
   // ** 로딩 조건 변경: 초기화되지 않았거나 authIsLoading이 true인 동안만 로딩 화면 표시 **
