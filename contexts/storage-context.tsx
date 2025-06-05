@@ -352,12 +352,19 @@ export function StorageProvider({ children }: StorageProviderProps) {
   const addProductCodeToStorage = async (productCode: Omit<ProductCode, 'id' | 'created_at' | 'updated_at'>): Promise<ProductCode | undefined> => {
     try {
       const { category, ...restOfProductCode } = productCode;
+      
+      // timestamp 필드들 명시적으로 제거 (Supabase에서 자동 생성)
       const dbProductCodePayload = {
-        ...restOfProductCode,
+        code: restOfProductCode.code,
+        name: restOfProductCode.name,
+        description: restOfProductCode.description,
+        storage_temp: restOfProductCode.storage_temp,
         category_id: category, // 'category' (ID)를 'category_id'로 매핑
       };
       
-      const result = await apiAddProductCode(dbProductCodePayload as any); // apiAddProductCode는 category_id를 가진 객체를 기대
+      console.log('addProductCodeToStorage: Final payload:', dbProductCodePayload);
+      
+      const result = await apiAddProductCode(dbProductCodePayload as any);
       if (result && result.length > 0) {
         const newDbData = result[0] as any;
         // debouncedRefreshData();
