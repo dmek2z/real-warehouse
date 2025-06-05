@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation" 
 import { Grid3x3, History, Home, LogOut, Package, Settings, Users, Menu as MenuIcon } from "lucide-react" 
@@ -41,7 +41,20 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const { user, logout, isLoading: authIsLoading, isInitialized, hasPermission } = useAuth(); // isInitialized도 가져옵니다.
+  const [forceShow, setForceShow] = useState(false);
+  const { user, logout, isLoading: authIsLoading, isInitialized, hasPermission } = useAuth();
+
+  // 최종 안전장치: 3초 후에도 로딩 중이면 강제로 표시
+  useEffect(() => {
+    const finalSafetyTimeout = setTimeout(() => {
+      if (!isInitialized || authIsLoading) {
+        console.warn('DashboardLayout: Final safety timeout - forcing display');
+        setForceShow(true);
+      }
+    }, 3000);
+
+    return () => clearTimeout(finalSafetyTimeout);
+  }, [isInitialized, authIsLoading]);
 
   const accessibleNavItems = navItems.filter((item) => {
     if (!isInitialized || authIsLoading) return false; // 초기화되지 않았거나 로딩 중에는 메뉴를 계산하지 않음
@@ -49,18 +62,17 @@ export default function DashboardLayout({
     return hasPermission(item.id, "view");
   });
 
-  // 디버깅을 위한 상태 로그
-  console.log('DashboardLayout: isInitialized =', isInitialized, 'authIsLoading =', authIsLoading, 'user =', user?.id || 'null');
-
   // ** 로딩 조건 변경: 초기화되지 않았거나 authIsLoading이 true인 동안만 로딩 화면 표시 **
-  if (!isInitialized || authIsLoading) {
-    console.log('DashboardLayout: Showing loading screen - isInitialized:', isInitialized, 'authIsLoading:', authIsLoading);
+  // forceShow가 true이면 강제로 페이지 표시
+  if ((!isInitialized || authIsLoading) && !forceShow) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-2">
-          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
-          <p>Loading application...</p>
-          <p className="text-xs text-gray-500">isInitialized: {String(isInitialized)}, isLoading: {String(authIsLoading)}</p>
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600"></div>
+          <div className="text-center">
+            <p className="text-lg font-medium text-gray-700">TAD STORY 로딩 중...</p>
+            <p className="text-sm text-gray-500 mt-1">잠시만 기다려주세요</p>
+          </div>
         </div>
       </div>
     );
