@@ -457,9 +457,15 @@ export function StorageProvider({ children }: StorageProviderProps) {
     try {
       await apiUpdateRack(id, updates);
       // debouncedRefreshData();
-    } catch (error) {
-      console.error('Error updating rack:', error);
-      throw error;
+    } catch (dbError: any) {
+      // DB 실패 시 로컬 fallback
+      setRacks(prev => prev.map(rack =>
+        rack.id === id ? { ...rack, ...updates } : rack
+      ));
+      saveToLocalStorage('tad_racks', racks.map(rack =>
+        rack.id === id ? { ...rack, ...updates } : rack
+      ));
+      console.warn('updateRackInStorage: Updated local state only for ID:', id);
     }
   };
 
@@ -467,9 +473,11 @@ export function StorageProvider({ children }: StorageProviderProps) {
     try {
       await apiDeleteRack(id);
       // debouncedRefreshData();
-    } catch (error) {
-      console.error('Error deleting rack:', error);
-      throw error;
+    } catch (dbError: any) {
+      // DB 실패 시 로컬 fallback
+      setRacks(prev => prev.filter(rack => rack.id !== id));
+      saveToLocalStorage('tad_racks', racks.filter(rack => rack.id !== id));
+      console.warn('deleteRackFromStorage: Removed from local state only for ID:', id);
     }
   };
 
