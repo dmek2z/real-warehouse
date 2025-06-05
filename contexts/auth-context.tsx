@@ -230,29 +230,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         if (isMounted && !initializationComplete) {
           initializationComplete = true;
+          console.log("AuthProvider: initializeAuth - Setting isInitialized(true) and isLoading(false)");
           setIsInitialized(true);
           setIsLoading(false);
           console.log("AuthProvider: initializeAuth - END, initialized and loading finished");
+        } else {
+          console.log("AuthProvider: initializeAuth - Finally block skipped, isMounted:", isMounted, "initializationComplete:", initializationComplete);
         }
       }
     }
 
     // 즉시 초기화 시작
-    initializeAuth();
-
-    // 강화된 안전장치: 3초 후에도 초기화되지 않으면 강제로 완료
-    const safetyTimeout = setTimeout(() => {
+    initializeAuth().catch((error) => {
+      console.error("AuthProvider: initializeAuth failed:", error);
       if (isMounted && !initializationComplete) {
-        console.warn("AuthProvider: Safety timeout - forcing initialization complete");
         initializationComplete = true;
         setIsInitialized(true);
         setIsLoading(false);
       }
-    }, 3000); // 5초에서 3초로 단축
+    });
+
+    // 매우 빠른 안전장치: 500ms 후에도 초기화되지 않으면 강제로 완료
+    const quickSafetyTimeout = setTimeout(() => {
+      if (isMounted && !initializationComplete) {
+        console.warn("AuthProvider: Quick safety timeout (500ms) - forcing initialization");
+        initializationComplete = true;
+        setIsInitialized(true);
+        setIsLoading(false);
+      }
+    }, 500);
+
+    // 추가 안전장치: 1초 후에도 초기화되지 않으면 강제로 완료
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted && !initializationComplete) {
+        console.warn("AuthProvider: Safety timeout (1s) - forcing initialization complete");
+        initializationComplete = true;
+        setIsInitialized(true);
+        setIsLoading(false);
+        console.log("AuthProvider: Safety timeout - setIsInitialized(true) and setIsLoading(false)");
+      }
+    }, 1000);
 
     return () => {
       isMounted = false;
       initializationComplete = true; // cleanup 시 플래그 설정
+      clearTimeout(quickSafetyTimeout);
       clearTimeout(safetyTimeout);
       authListener?.subscription.unsubscribe();
       console.log("AuthProvider: useEffect for auth listener - UNMOUNTED.");
