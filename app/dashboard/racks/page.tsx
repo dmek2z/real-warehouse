@@ -493,13 +493,36 @@ export default function RackViewPage() {
         const worksheet = workbook.Sheets[firstSheetName]
         const rows: any[] = utils.sheet_to_json(worksheet) // rows 타입 any[]로 명시
 
+        // 컬럼명 정규화 함수
+        function normalizeKey(key: string) {
+          return key.replace(/\s/g, '').toLowerCase()
+            .replace('line', '라인')
+            .replace('라인', '라인')
+            .replace('rackname', '랙이름')
+            .replace('랙이름', '랙이름')
+            .replace('품목코드', '품목코드')
+            .replace('productcode', '품목코드')
+            .replace('floor', '층')
+            .replace('층', '층')
+        }
+
+        // row를 내부 표준 key로 변환
+        const normalizedRows = rows.map((row) => {
+          const normalizedRow: any = {}
+          Object.keys(row).forEach((key) => {
+            const norm = normalizeKey(key)
+            normalizedRow[norm] = row[key]
+          })
+          return normalizedRow
+        })
+
         // 데이터 검증
         const currentUploadErrors: string[] = [] // 지역 변수로 변경
         const validRows: any[] = [] // 타입 명시
         const existingLines = new Set(racks.map((rack) => rack.line))
         const existingProductCodesSet = new Set(productCodes.map((product) => product.code)) // Set으로 변경하여 성능 향상
 
-        rows.forEach((row, index) => {
+        normalizedRows.forEach((row, index) => {
           const line = row.라인
           const rackName = row.랙이름
           const productCodeValue = String(row["품목코드"]); // productCodeValue로 변경
@@ -525,7 +548,6 @@ export default function RackViewPage() {
             currentUploadErrors.push(`행 ${index + 2}: 층은 1부터 4까지의 정수여야 합니다. (입력값: ${floor})`)
             return
           }
-
 
           validRows.push(row)
         })
@@ -1304,11 +1326,6 @@ export default function RackViewPage() {
                 </LineDropZone>
               ))}
             </div>
-            {Object.keys(racksByLine).length === 0 && (
-                 <div className="flex items-center justify-center w-full h-40 text-muted-foreground">
-                    표시할 랙이 없습니다.
-                 </div>
-            )}
           </div>
         </div>
 
