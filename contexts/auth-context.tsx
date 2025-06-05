@@ -168,7 +168,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
-        if (!isMounted || initializationComplete) return;
+        if (!isMounted) return;
+        
+        // 초기화 완료 후에는 INITIAL_SESSION만 무시하고, SIGNED_IN/SIGNED_OUT은 계속 처리
+        if (initializationComplete && event === 'INITIAL_SESSION') return;
+        
         console.log(`AuthProvider: onAuthStateChange - Event: ${event}, User: ${session?.user?.id || 'null'}`);
 
         try {
@@ -177,6 +181,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (event === 'SIGNED_OUT') {
             if (pathname !== '/login') {
               router.push('/login');
+            }
+          }
+          
+          // 로그인 성공 시 대시보드로 리다이렉트
+          if (event === 'SIGNED_IN' && session?.user) {
+            if (pathname === '/login') {
+              router.push('/dashboard');
             }
           }
         } catch (error) {
@@ -256,7 +267,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
         return false;
       }
-      // 성공 시 onAuthStateChange가 SIGNED_IN 이벤트를 처리
+      
+      // 로그인 성공 - onAuthStateChange가 SIGNED_IN 이벤트를 처리할 것임
+      console.log("AuthProvider: login - Success, waiting for auth state change");
       return true;
     } catch (error: any) {
       console.error('AuthProvider: login - Overall error:', error.message);

@@ -21,17 +21,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false); 
-  const { login, currentUser, isLoading: authIsLoading } = useAuth()
+  const { login, user, isLoading: authIsLoading } = useAuth()
 
   const [saveId, setSaveId] = useState(false)
   const [autoLogin, setAutoLogin] = useState(false)
 
   useEffect(() => {
-    if (!authIsLoading && currentUser) {
+    if (!authIsLoading && user) {
       console.log("LoginPage: User already logged in or session restored, redirecting to dashboard.");
       router.push("/dashboard");
     }
-  }, [currentUser, authIsLoading, router]);
+  }, [user, authIsLoading, router]);
 
   useEffect(() => {
     const savedUserId = localStorage.getItem("savedUserId");
@@ -44,7 +44,7 @@ export default function LoginPage() {
 
     if (attemptAutoLogin && savedUserId) {
       setAutoLogin(true);
-      if (!currentUser && !authIsLoading) {
+      if (!user && !authIsLoading) {
         console.log("LoginPage: Attempting auto login for", savedUserId);
         handleAutoLoginAttempt(savedUserId);
       }
@@ -119,7 +119,7 @@ export default function LoginPage() {
     }
   };
 
-  if (authIsLoading && !currentUser) {
+  if (authIsLoading && !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-2">
