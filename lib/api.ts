@@ -4,10 +4,12 @@ import type { Product, Rack, Category, ProductCode, User } from '@/contexts/stor
 // Error handling utility
 const handleError = (error: any, operation: string) => {
   console.error(`Error during ${operation}:`, error);
-  // 실제 애플리케이션에서는 사용자에게 더 친화적인 에러 메시지를 보여주거나,
-  // 에러 로깅 시스템으로 보내는 등의 처리를 할 수 있습니다.
-  // throw new Error(`Failed to ${operation}: ${error.message}`); // 필요에 따라 주석 해제 또는 수정
-  return []; // 에러 발생 시 빈 배열 또는 적절한 기본값 반환 고려
+  
+  // 실제 에러 정보를 포함한 에러 메시지 생성
+  const errorMessage = error?.message || error?.details || error?.hint || String(error);
+  
+  // 에러를 다시 던져서 상위에서 적절히 처리할 수 있도록 함
+  throw new Error(`Failed to ${operation}: ${errorMessage}`);
 };
 
 // 제품 전체 조회
@@ -297,26 +299,35 @@ export async function fetchProductCodes() {
 // 품목 코드 추가
 export async function addProductCode(productCode: Omit<ProductCode, 'id'>) {
   try {
+    console.log('addProductCode: Input data:', productCode);
+    
     // storage-context.tsx 에서 이미 category_id로 매핑하고 있으므로,
     // 전달된 productCode 객체가 DB 스키마와 일치한다고 가정합니다.
-    // 만약 ProductCode 타입에 category가 있고 DB에 category_id만 있다면,
-    // context에서 category_id: productCode.category, delete productCode.category 처리가 필요합니다.
-    // 현재는 lib/api.ts로 전달된 productCode 객체가 DB 삽입에 적합하다고 가정합니다.
     const { category, ...productCodeForDb } = productCode as any; // 'category'가 있다면 분리
     if (category && !productCodeForDb.category_id) { // category_id가 없고 category가 있다면 변환
          productCodeForDb.category_id = category;
     }
 
+    console.log('addProductCode: Processed data for DB:', productCodeForDb);
 
     const { data, error } = await supabase
       .from('product_codes')
-      .insert([productCodeForDb]) // category 필드가 아닌 category_id를 사용하도록 이미 컨텍스트에서 처리되었거나 여기서 조정
+      .insert([productCodeForDb])
       .select();
 
+    console.log('addProductCode: Supabase response:', { data, error });
+
     if (error) throw error;
-    return (data || []) as ProductCode[];
+    
+    if (!data || data.length === 0) {
+      throw new Error('No data returned from database after insert');
+    }
+    
+    return data as ProductCode[];
   } catch (error) {
-    return handleError(error, 'add product code') as ProductCode[];
+    console.error('addProductCode: Error occurred:', error);
+    handleError(error, 'add product code');
+    return []; // 이 라인은 실제로는 실행되지 않음 (handleError가 에러를 던지므로)
   }
 }
 
