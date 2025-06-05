@@ -72,6 +72,13 @@ const PERMISSION_TEMPLATES = [
   },
 ]
 
+// 역할과 권한 템플릿 매핑
+const ROLE_TO_TEMPLATE: Record<string, string> = {
+  admin: "admin",
+  manager: "manager",
+  viewer: "viewer",
+};
+
 export default function UsersPage() {
   const { users, addUser, updateUser, deleteUser, isLoading } = useStorage()
   const { hasPermission } = useAuth()
@@ -633,11 +640,15 @@ export default function UsersPage() {
             <TabsContent value="permissions" className="space-y-4">
               <div className="space-y-4">
                 <div>
-                  <Label>역할</Label>
+                  <Label>역할 및 권한 템플릿</Label>
                   <div className="mt-2 flex gap-2">
                     <select
                       value={formRole}
-                      onChange={(e) => setFormRole(e.target.value)}
+                      onChange={(e) => {
+                        setFormRole(e.target.value);
+                        const templateId = ROLE_TO_TEMPLATE[e.target.value];
+                        handleApplyTemplate(templateId);
+                      }}
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                     >
                       <option value="viewer">뷰어</option>
@@ -647,23 +658,10 @@ export default function UsersPage() {
                   </div>
                 </div>
 
-                <Separator />
-
-                <div>
-                  <Label>권한 템플릿</Label>
-                  <div className="mt-2 flex gap-2">
-                    {PERMISSION_TEMPLATES.map((template) => (
-                      <Button
-                        key={template.id}
-                        variant={selectedTemplate === template.id ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handleApplyTemplate(template.id)}
-                      >
-                        {template.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
+                {/* 비밀번호 에러 메시지 항상 표시 */}
+                {formErrors.password && formSubmitAttempted && (
+                  <p className="text-sm text-red-500">{formErrors.password}</p>
+                )}
 
                 <Separator />
 
