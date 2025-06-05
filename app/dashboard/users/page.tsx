@@ -24,7 +24,7 @@ import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
 import { useStorage } from "@/contexts/storage-context"
 import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/supabase"
+import { supabase } from "@/lib/supabaseClient"
 
 // Types
 interface Permission {

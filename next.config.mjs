@@ -10,7 +10,7 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    serverComponentsExternalPackages: ['@supabase/supabase-js'],
+    serverExternalPackages: ['@supabase/supabase-js'],
   },
   async redirects() {
     return [
