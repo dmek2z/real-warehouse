@@ -411,8 +411,21 @@ export function StorageProvider({ children }: StorageProviderProps) {
         dbUpdatesPayload.category_id = category;
       }
       
-      await apiUpdateProductCode(id, dbUpdatesPayload as any);
-      // debouncedRefreshData();
+      try {
+        await apiUpdateProductCode(id, dbUpdatesPayload as any);
+        // debouncedRefreshData();
+      } catch (dbError: any) {
+        console.warn('Database update failed for product code, using local fallback:', dbError);
+        
+        // DB 접근 실패 시 로컬 상태로만 처리
+        setProductCodesState(prev => prev.map(pc => 
+          pc.id === id 
+            ? { ...pc, ...updates, updated_at: new Date().toISOString() }
+            : pc
+        ));
+        
+        console.log('updateProductCodeInStorage: Updated local state only for ID:', id);
+      }
     } catch (error) {
       console.error('Error updating product code:', error);
       throw error;

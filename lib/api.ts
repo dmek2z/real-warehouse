@@ -334,11 +334,25 @@ export async function addProductCode(productCode: Omit<ProductCode, 'id'>) {
 // 품목 코드 수정
 export async function updateProductCode(id: string, updates: Partial<ProductCode>) {
   try {
-    // 위와 동일하게 category vs category_id 처리 필요
-    const { category, ...updatesForDb } = updates as any;
-    if (category && !updatesForDb.category_id) {
+    console.log('updateProductCode: Input data:', { id, updates });
+    
+    // timestamp 필드들과 category 필드를 분리하고 정리
+    const { category, created_at, updated_at, ...cleanUpdates } = updates as any;
+    
+    const updatesForDb: any = {};
+    
+    // 정의된 필드들만 포함 (undefined 값 제외)
+    if (cleanUpdates.code !== undefined) updatesForDb.code = cleanUpdates.code;
+    if (cleanUpdates.name !== undefined) updatesForDb.name = cleanUpdates.name;
+    if (cleanUpdates.description !== undefined) updatesForDb.description = cleanUpdates.description;
+    if (cleanUpdates.storage_temp !== undefined) updatesForDb.storage_temp = cleanUpdates.storage_temp;
+    
+    // category가 있으면 category_id로 변환
+    if (category !== undefined) {
         updatesForDb.category_id = category;
     }
+
+    console.log('updateProductCode: Processed data for DB:', updatesForDb);
 
     const { data, error } = await supabase
       .from('product_codes')
@@ -346,10 +360,19 @@ export async function updateProductCode(id: string, updates: Partial<ProductCode
       .eq('id', id)
       .select();
 
+    console.log('updateProductCode: Supabase response:', { data, error });
+
     if (error) throw error;
-    return (data || []) as ProductCode[];
+    
+    if (!data || data.length === 0) {
+      throw new Error('No data returned from database after update');
+    }
+    
+    return data as ProductCode[];
   } catch (error) {
-    return handleError(error, 'update product code') as ProductCode[];
+    console.error('updateProductCode: Error occurred:', error);
+    handleError(error, 'update product code');
+    return []; // 이 라인은 실제로는 실행되지 않음 (handleError가 에러를 던지므로)
   }
 }
 
