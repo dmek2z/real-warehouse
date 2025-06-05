@@ -683,9 +683,11 @@ export function StorageProvider({ children }: StorageProviderProps) {
       const { password, ...updatesForDb } = updates;
       await apiUpdateUser(id, updatesForDb);
       // debouncedRefreshData();
-    } catch (error) {
-      console.error('Error updating user:', error);
-      throw error;
+    } catch (dbError: any) {
+      // DB 실패 시 로컬 fallback
+      setUsers(prev => prev.map(user => user.id === id ? { ...user, ...updates } : user));
+      saveToLocalStorage('tad_users', users.map(user => user.id === id ? { ...user, ...updates } : user));
+      console.warn('updateUserInStorage: Updated local state only for ID:', id);
     }
   };
 
@@ -693,9 +695,11 @@ export function StorageProvider({ children }: StorageProviderProps) {
     try {
       await apiDeleteUser(id);
       // debouncedRefreshData();
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      throw error;
+    } catch (dbError: any) {
+      // DB 실패 시 로컬 fallback
+      setUsers(prev => prev.filter(user => user.id !== id));
+      saveToLocalStorage('tad_users', users.filter(user => user.id !== id));
+      console.warn('deleteUserFromStorage: Removed from local state only for ID:', id);
     }
   };
 

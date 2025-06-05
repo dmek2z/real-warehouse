@@ -500,7 +500,7 @@ export default function RackViewPage() {
         rows.forEach((row, index) => {
           const line = row.라인
           const rackName = row.랙이름
-          const productCodeValue = row.품목코드 // productCodeValue로 변경
+          const productCodeValue = String(row["품목코드"]); // productCodeValue로 변경
           const floor = row.층
 
           // 유효성 검사
@@ -1184,7 +1184,7 @@ export default function RackViewPage() {
             </div>
             {/* B&C라인 */}
             <div className="flex gap-x-px ml-8">
-              {Object.entries(racksByLine).filter(([line]) => line === "B" || line === "C").map(([line, racksInLine]) => (
+              {ALL_LINES.filter(line => line === "B" || line === "C").map(line => (
                 <LineDropZone
                   key={line}
                   line={line}
@@ -1194,7 +1194,7 @@ export default function RackViewPage() {
                   selectedRacks={selectedRacks}
                   onSelectLine={handleSelectLine}
                 >
-                  {racksInLine.length > 0 ? racksInLine.map((rack) => (
+                  {racksByLine[line]?.length > 0 ? racksByLine[line].map((rack) => (
                     <RackComponent
                       key={rack.id}
                       rack={rack}
@@ -1214,7 +1214,7 @@ export default function RackViewPage() {
             </div>
             {/* D&E라인 */}
             <div className="flex gap-x-px ml-8">
-              {Object.entries(racksByLine).filter(([line]) => line === "D" || line === "E").map(([line, racksInLine]) => (
+              {ALL_LINES.filter(line => line === "D" || line === "E").map(line => (
                 <LineDropZone
                   key={line}
                   line={line}
@@ -1224,7 +1224,7 @@ export default function RackViewPage() {
                   selectedRacks={selectedRacks}
                   onSelectLine={handleSelectLine}
                 >
-                  {racksInLine.length > 0 ? racksInLine.map((rack) => (
+                  {racksByLine[line]?.length > 0 ? racksByLine[line].map((rack) => (
                     <RackComponent
                       key={rack.id}
                       rack={rack}
@@ -1244,7 +1244,7 @@ export default function RackViewPage() {
             </div>
             {/* F&G라인 */}
             <div className="flex gap-x-px ml-8">
-              {Object.entries(racksByLine).filter(([line]) => line === "F" || line === "G").map(([line, racksInLine]) => (
+              {ALL_LINES.filter(line => line === "F" || line === "G").map(line => (
                 <LineDropZone
                   key={line}
                   line={line}
@@ -1254,7 +1254,7 @@ export default function RackViewPage() {
                   selectedRacks={selectedRacks}
                   onSelectLine={handleSelectLine}
                 >
-                  {racksInLine.length > 0 ? racksInLine.map((rack) => (
+                  {racksByLine[line]?.length > 0 ? racksByLine[line].map((rack) => (
                     <RackComponent
                       key={rack.id}
                       rack={rack}
