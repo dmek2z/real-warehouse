@@ -105,7 +105,10 @@ export default function ProductCodesPage() {
   }, [selectedItems, filteredProductCodes])
 
   const handleAddProduct = async () => {
-    if (!formCode.trim()) return // 코드만 필수 입력
+    if (!formCode.trim() || !formCategory.trim()) {
+      showToast("코드와 카테고리는 필수 입력 항목입니다.", "error")
+      return
+    }
 
     const newProduct = {
       id: `pc-${Date.now()}`,
@@ -130,7 +133,10 @@ export default function ProductCodesPage() {
   }
 
   const handleEditProduct = async () => {
-    if (!editingProduct || !formCode.trim()) return
+    if (!editingProduct || !formCode.trim() || !formCategory.trim()) {
+      showToast("코드와 카테고리는 필수 입력 항목입니다.", "error")
+      return
+    }
 
     const updates = {
       code: formCode,
@@ -628,7 +634,7 @@ export default function ProductCodesPage() {
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="category" className="text-right">
-                카테고리
+                카테고리 *
               </Label>
               <Select value={formCategory} onValueChange={setFormCategory}>
                 <SelectTrigger id="category" className="col-span-3">
@@ -655,7 +661,7 @@ export default function ProductCodesPage() {
             >
               취소
             </Button>
-            <Button onClick={handleAddProduct} disabled={!formCode.trim()}>
+            <Button onClick={handleAddProduct} disabled={!formCode.trim() || !formCategory.trim()}>
               품목 추가
             </Button>
           </DialogFooter>
@@ -710,7 +716,7 @@ export default function ProductCodesPage() {
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="edit-category" className="text-right">
-                카테고리
+                카테고리 *
               </Label>
               <Select value={formCategory} onValueChange={setFormCategory}>
                 <SelectTrigger id="edit-category" className="col-span-3">
@@ -738,7 +744,7 @@ export default function ProductCodesPage() {
             >
               취소
             </Button>
-            <Button onClick={handleEditProduct} disabled={!formCode.trim()}>
+            <Button onClick={handleEditProduct} disabled={!formCode.trim() || !formCategory.trim()}>
               변경사항 저장
             </Button>
           </DialogFooter>

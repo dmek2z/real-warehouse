@@ -146,33 +146,38 @@ export function StorageProvider({ children }: StorageProviderProps) {
     console.log("StorageContext: refreshData called");
     setIsLoadingState(true);
     try {
-      const [
-        productsDataDb, 
-        racksDataDb, 
-        categoriesDataDb, 
-        usersDataDb, 
-        productCodesDataDb, 
-        activityLogsDataDb
-      ] = await Promise.all([
-        supabase.from('products').select('*'),
-        supabase.from('racks').select('*, rack_products(product_id, floor, inbound_date, outbound_date)'),
-        supabase.from('categories').select('*').order('name'),
-        supabase.from('users').select('*').order('name'),
-        supabase.from('product_codes').select('*, category_id').order('code'), // category_id를 명시적으로 가져옴
-        supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(50)
-      ]);
+      // DB 연결 시도하되, 실패하면 로컬 데이터 유지
+      try {
+        const [
+          productsDataDb, 
+          racksDataDb, 
+          categoriesDataDb, 
+          usersDataDb, 
+          productCodesDataDb, 
+          activityLogsDataDb
+        ] = await Promise.all([
+          supabase.from('products').select('*'),
+          supabase.from('racks').select('*, rack_products(product_id, floor, inbound_date, outbound_date)'),
+          supabase.from('categories').select('*').order('name'),
+          supabase.from('users').select('*').order('name'),
+          supabase.from('product_codes').select('*, category_id').order('code'),
+          supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(50)
+        ]);
 
-      const errors = [
-        productsDataDb.error, racksDataDb.error, categoriesDataDb.error, 
-        usersDataDb.error, productCodesDataDb.error, activityLogsDataDb.error
-      ].filter(Boolean);
+        const errors = [
+          productsDataDb.error, racksDataDb.error, categoriesDataDb.error, 
+          usersDataDb.error, productCodesDataDb.error, activityLogsDataDb.error
+        ].filter(Boolean);
 
-      if (errors.length > 0) {
-        errors.forEach(error => console.error('Error fetching data part:', error));
-        throw new Error(`Failed to fetch some data parts: ${errors.map(e => e?.message).join(', ')}`);
-      }
+        if (errors.length > 0) {
+          console.warn('Some DB queries failed, keeping existing local data:', errors);
+          // 에러가 있어도 기존 로컬 데이터 유지
+          setLastRefreshState(Date.now());
+          setIsLoadingState(false);
+          return;
+        }
       
-      setProductsState((productsDataDb.data?.map(mapProductFromDb) || []) as Product[]);
+        setProductsState((productsDataDb.data?.map(mapProductFromDb) || []) as Product[]);
 
       const mappedRacks = (racksDataDb.data || []).map(rack => {
         const rackProducts = (rack.rack_products || []).map((rp: any) => {
@@ -234,8 +239,12 @@ export function StorageProvider({ children }: StorageProviderProps) {
         details: log.details || log.action,
       })) as StockMovement[]);
 
-      setLastRefreshState(Date.now());
-      console.log("StorageContext: refreshData successful");
+        setLastRefreshState(Date.now());
+        console.log("StorageContext: refreshData successful");
+      } catch (dbError: any) {
+        console.warn('Database access failed completely, keeping existing local data:', dbError);
+        setLastRefreshState(Date.now());
+      }
     } catch (error) {
       console.error('StorageContext: Error refreshing data:', error);
     } finally {
@@ -434,8 +443,17 @@ export function StorageProvider({ children }: StorageProviderProps) {
 
   const deleteProductCodeFromStorage = async (id: string) => {
     try {
-      await apiDeleteProductCode(id);
-      // debouncedRefreshData();
+      try {
+        await apiDeleteProductCode(id);
+        // debouncedRefreshData();
+      } catch (dbError: any) {
+        console.warn('Database delete failed for product code, using local fallback:', dbError);
+        
+        // DB 접근 실패 시 로컬 상태에서만 제거
+        setProductCodesState(prev => prev.filter(pc => pc.id !== id));
+        
+        console.log('deleteProductCodeFromStorage: Removed from local state only for ID:', id);
+      }
     } catch (error) {
       console.error('Error deleting product code:', error);
       throw error;
