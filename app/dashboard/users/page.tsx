@@ -627,25 +627,28 @@ export default function UsersPage() {
                     <p className="text-sm text-red-500">{formErrors.password}</p>
                   )}
                 </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="add-role">역할</Label>
-                  <select
-                    id="add-role"
-                    value={formRole}
-                    onChange={(e) => setFormRole(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                  >
-                    <option value="viewer">뷰어</option>
-                    <option value="manager">매니저</option>
-                    <option value="admin">관리자</option>
-                  </select>
-                </div>
               </div>
             </TabsContent>
 
             <TabsContent value="permissions" className="space-y-4">
               <div className="space-y-4">
+                <div>
+                  <Label>역할</Label>
+                  <div className="mt-2 flex gap-2">
+                    <select
+                      value={formRole}
+                      onChange={(e) => setFormRole(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                    >
+                      <option value="viewer">뷰어</option>
+                      <option value="manager">매니저</option>
+                      <option value="admin">관리자</option>
+                    </select>
+                  </div>
+                </div>
+
+                <Separator />
+
                 <div>
                   <Label>권한 템플릿</Label>
                   <div className="mt-2 flex gap-2">
