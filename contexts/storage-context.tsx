@@ -287,16 +287,24 @@ export function StorageProvider({ children }: StorageProviderProps) {
         status: 'active', 
       })) as User[]);
       
-      setProductCodesState((productCodesDataDb.data || []).map(pc => ({
+      // DB 데이터와 로컬 데이터를 병합 (로컬의 temp 데이터 보존)
+      const dbProductCodes = (productCodesDataDb.data || []).map(pc => ({
         id: pc.id,
         code: pc.code,
         name: pc.name,
         description: pc.description,
-        category: pc.category_id, // DB의 category_id를 사용
-        storage_temp: pc.storage_temp || -18, // DB에 storage_temp가 있다면 사용, 없다면 기본값
+        category: pc.category_id,
+        storage_temp: pc.storage_temp || -18,
         created_at: pc.created_at,
         updated_at: pc.updated_at,
-      })) as ProductCode[]);
+      })) as ProductCode[];
+      
+      // 로컬의 temp 데이터 (temp-로 시작하는 ID) 유지
+      setProductCodes(prev => {
+        const localTempItems = prev.filter(item => item.id.startsWith('temp-'));
+        const dbItems = dbProductCodes.filter(item => !item.id.startsWith('temp-'));
+        return [...dbItems, ...localTempItems];
+      });
 
       setStockMovementsState((activityLogsDataDb.data || []).map(log => ({
         id: log.id,
@@ -496,8 +504,8 @@ export function StorageProvider({ children }: StorageProviderProps) {
       } catch (dbError: any) {
         console.warn('Database update failed for product code, using local fallback:', dbError);
         
-        // DB 접근 실패 시 로컬 상태로만 처리
-        setProductCodesState(prev => prev.map(pc => 
+        // DB 접근 실패 시 로컬 상태로만 처리 (localStorage 동기화 포함)
+        setProductCodes(prev => prev.map(pc => 
           pc.id === id 
             ? { ...pc, ...updates, updated_at: new Date().toISOString() }
             : pc
@@ -519,8 +527,8 @@ export function StorageProvider({ children }: StorageProviderProps) {
       } catch (dbError: any) {
         console.warn('Database delete failed for product code, using local fallback:', dbError);
         
-        // DB 접근 실패 시 로컬 상태에서만 제거
-        setProductCodesState(prev => prev.filter(pc => pc.id !== id));
+        // DB 접근 실패 시 로컬 상태에서만 제거 (localStorage 동기화 포함)
+        setProductCodes(prev => prev.filter(pc => pc.id !== id));
         
         console.log('deleteProductCodeFromStorage: Removed from local state only for ID:', id);
       }
@@ -550,8 +558,8 @@ export function StorageProvider({ children }: StorageProviderProps) {
           created_at: new Date().toISOString(),
         };
         
-        // 로컬 상태에 직접 추가
-        setCategoriesState(prev => [...prev, fallbackCategory]);
+        // 로컬 상태에 직접 추가 (localStorage 동기화 포함)
+        setCategories(prev => [...prev, fallbackCategory]);
         
         console.log('addCategoryToStorage: Added to local state only:', fallbackCategory);
         return fallbackCategory;
@@ -626,8 +634,8 @@ export function StorageProvider({ children }: StorageProviderProps) {
     <StorageContext.Provider value={{
       products, addProduct: addProductToStorage, updateProduct: updateProductInStorage, deleteProduct: deleteProductFromStorage,
       racks, addRack: addRackToStorage, updateRack: updateRackInStorage, deleteRack: deleteRackFromStorage,
-      productCodes, setProductCodes: setProductCodesState, addProductCode: addProductCodeToStorage, updateProductCode: updateProductCodeInStorage, deleteProductCode: deleteProductCodeFromStorage,
-      categories, setCategories: setCategoriesState, addCategory: addCategoryToStorage, updateCategory: updateCategoryInStorage, deleteCategory: deleteCategoryFromStorage,
+      productCodes, setProductCodes, addProductCode: addProductCodeToStorage, updateProductCode: updateProductCodeInStorage, deleteProductCode: deleteProductCodeFromStorage,
+      categories, setCategories, addCategory: addCategoryToStorage, updateCategory: updateCategoryInStorage, deleteCategory: deleteCategoryFromStorage,
       users, addUser: addUserToStorage, updateUser: updateUserInStorage, deleteUser: deleteUserFromStorage,
       stockMovements,
       lastUpdated: lastRefresh,
