@@ -590,13 +590,48 @@ export default function RackViewPage() {
 
     const currentUploadErrors: string[] = [];
     let successCount = 0;
-    const racksToUpdate: { [key: string]: ReturnType<typeof useStorage>['racks'][0] } = {}; // 업데이트할 랙들을 임시 저장
-    const racksToAdd: Omit<ReturnType<typeof useStorage>['racks'][0], 'id'>[] = []; // 새로 추가할 랙들
+    const racksToUpdate: { [key: string]: ReturnType<typeof useStorage>['racks'][0] } = {};
+    const racksToAdd: Omit<ReturnType<typeof useStorage>['racks'][0], 'id'>[] = [];
 
-    previewData.forEach((row) => {
-        const line = row.라인 as string;
-        const rackName = row.랙이름 as string;
-        const productCodeValue = String(row["품목코드"]); // productCodeValue로 변경
+    // 유효한 라인 목록
+    const validLines = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    // 유효한 층 범위
+    const validFloors = [1, 2, 3, 4];
+
+    // 기존 품목 코드 목록 가져오기
+    const existingProductCodes = new Set(productCodes.map(pc => pc.code));
+
+    previewData.forEach((row, index) => {
+        const line = String(row.라인).toUpperCase();
+        const rackName = String(row.랙이름).trim();
+        const productCodeValue = String(row["품목코드"]).trim();
+        const floor = Number(row.층);
+
+        // 유효성 검사
+        if (!validLines.includes(line)) {
+            currentUploadErrors.push(`행 ${index + 1}: 유효하지 않은 라인입니다. (${line})`);
+            return;
+        }
+
+        if (!rackName) {
+            currentUploadErrors.push(`행 ${index + 1}: 랙 이름이 비어있습니다.`);
+            return;
+        }
+
+        if (!productCodeValue) {
+            currentUploadErrors.push(`행 ${index + 1}: 품목 코드가 비어있습니다.`);
+            return;
+        }
+
+        if (!existingProductCodes.has(productCodeValue)) {
+            currentUploadErrors.push(`행 ${index + 1}: 존재하지 않는 품목 코드입니다. (${productCodeValue})`);
+            return;
+        }
+
+        if (!validFloors.includes(floor)) {
+            currentUploadErrors.push(`행 ${index + 1}: 유효하지 않은 층입니다. (${floor})`);
+            return;
+        }
 
         let targetRack = racks.find((rack) => rack.name === rackName && rack.line === line);
 
@@ -604,50 +639,54 @@ export default function RackViewPage() {
             const newRackData: Omit<ReturnType<typeof useStorage>['racks'][0], 'id'> = {
                 name: rackName,
                 products: [],
-                capacity: 4, // 기본값
+                capacity: 4,
                 line,
             };
             racksToAdd.push(newRackData);
-            // 임시로 racksToUpdate에 추가하여 다음 품목 처리 시 참조할 수 있도록 함
             racksToUpdate[`${line}-${rackName}`] = { ...newRackData, id: `temp-${Date.now()}-${Math.random()}` };
             targetRack = racksToUpdate[`${line}-${rackName}`];
         } else if (targetRack && !racksToUpdate[targetRack.id]) {
-             racksToUpdate[targetRack.id] = JSON.parse(JSON.stringify(targetRack)); // 기존 랙 복사
-             targetRack = racksToUpdate[targetRack.id];
+            racksToUpdate[targetRack.id] = JSON.parse(JSON.stringify(targetRack));
+            targetRack = racksToUpdate[targetRack.id];
         } else if (!targetRack && racksToUpdate[`${line}-${rackName}`]) {
             targetRack = racksToUpdate[`${line}-${rackName}`];
         }
 
-
         if (targetRack) {
-            const newProduct: Product = { // Product 타입 사용
+            const newProduct: Product = {
                 id: `product-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
                 code: productCodeValue,
-                inbound_at: new Date().toISOString(), // 변경
-                outbound_at: null, // 변경
+                inbound_at: new Date().toISOString(),
+                outbound_at: null,
                 weight: Math.floor(Math.random() * 50) + 10,
                 manufacturer: ["냉동식품", "얼음식품", "극지방제품", "북극신선", "콜드요리"][Math.floor(Math.random() * 5)],
-                floor: Number(row.층) || 1,
+                floor: floor,
             };
             targetRack.products.push(newProduct);
             successCount++;
-        } else {
-            currentUploadErrors.push(`랙 ${line}-${rackName}을(를) 찾거나 생성할 수 없습니다.`);
         }
     });
+
+    if (currentUploadErrors.length > 0) {
+        setUploadResult({
+            success: 0,
+            errors: currentUploadErrors,
+        });
+        setIsExcelUploadDialogOpen(true);
+        setIsPreviewDialogOpen(false);
+        return;
+    }
 
     try {
         // 새 랙 추가
         for (const newRackData of racksToAdd) {
-            // products 필드 제외하고 추가
             const { products, ...rackForDb } = newRackData;
             await storageAddRack(rackForDb);
         }
         // 기존 랙 업데이트
         for (const rackId in racksToUpdate) {
             const rackToSave = racksToUpdate[rackId];
-            if (!rackId.startsWith('temp-')) { // 임시 ID가 아닌 실제 ID를 가진 랙만 업데이트
-                // products 필드 별도 처리
+            if (!rackId.startsWith('temp-')) {
                 await storageUpdateRack(rackId, { line: rackToSave.line, name: rackToSave.name, capacity: rackToSave.capacity });
                 await storageUpdateRack(rackId, { products: rackToSave.products });
             }
@@ -659,13 +698,12 @@ export default function RackViewPage() {
         currentUploadErrors.push("데이터베이스 저장 중 오류 발생");
     }
 
-
     setUploadResult({
         success: successCount,
         errors: currentUploadErrors,
     });
-    setIsExcelUploadDialogOpen(true); // 결과를 보여주기 위해 다른 다이얼로그를 열거나, 현재 다이얼로그 내용을 업데이트
-    setIsPreviewDialogOpen(false); // 미리보기 다이얼로그는 닫음
+    setIsExcelUploadDialogOpen(true);
+    setIsPreviewDialogOpen(false);
 };
 
 

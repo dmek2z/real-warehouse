@@ -24,7 +24,7 @@ import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
 import { useStorage } from "@/contexts/storage-context"
 import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseClient"
 
 // Types
 interface Permission {
@@ -320,7 +320,7 @@ export default function UsersPage() {
 
     try {
       // Supabase Auth 이메일 중복 체크
-      const { data, error } = await supabase.auth.admin.listUsers();
+      const { data, error } = await supabaseAdmin.auth.admin.listUsers();
       if (error) throw error;
       const authUserExists = data.users.some((u) => u.email === formEmail);
       const appUserExists = users.some((user) => user.email === formEmail);
@@ -332,11 +332,21 @@ export default function UsersPage() {
         });
         return;
       }
+
+      // Supabase Auth에 사용자 생성
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: formEmail,
+        password: formPassword,
+        email_confirm: true
+      });
+
+      if (authError) throw authError;
+
       const newUser = {
+        id: authData.user.id,
         email: formEmail,
         name: formName,
         role: formRole,
-        password: formPassword,
         status: "active" as const,
         permissions: formPermissions,
       }
