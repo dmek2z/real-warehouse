@@ -117,15 +117,85 @@ function debounce<T extends (...args: any[]) => any>(func: T, delay: number): (.
   };
 }
 
+// 로컬 스토리지 헬퍼 함수들
+const getFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
+  if (typeof window === 'undefined') return defaultValue;
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch (error) {
+    console.warn(`Failed to get ${key} from localStorage:`, error);
+    return defaultValue;
+  }
+};
+
+const saveToLocalStorage = <T,>(key: string, value: T): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.warn(`Failed to save ${key} to localStorage:`, error);
+  }
+};
+
 export function StorageProvider({ children }: StorageProviderProps) {
-  const [products, setProductsState] = useState<Product[]>([]);
-  const [racks, setRacksState] = useState<Rack[]>([]);
-  const [categories, setCategoriesState] = useState<Category[]>([]);
-  const [users, setUsersState] = useState<User[]>([]);
-  const [productCodes, setProductCodesState] = useState<ProductCode[]>([]);
-  const [stockMovements, setStockMovementsState] = useState<StockMovement[]>([]);
+  const [products, setProductsState] = useState<Product[]>(() => getFromLocalStorage('tad_products', []));
+  const [racks, setRacksState] = useState<Rack[]>(() => getFromLocalStorage('tad_racks', []));
+  const [categories, setCategoriesState] = useState<Category[]>(() => getFromLocalStorage('tad_categories', []));
+  const [users, setUsersState] = useState<User[]>(() => getFromLocalStorage('tad_users', []));
+  const [productCodes, setProductCodesState] = useState<ProductCode[]>(() => getFromLocalStorage('tad_productCodes', []));
+  const [stockMovements, setStockMovementsState] = useState<StockMovement[]>(() => getFromLocalStorage('tad_stockMovements', []));
   const [isLoading, setIsLoadingState] = useState(true);
   const [lastRefresh, setLastRefreshState] = useState<number>(Date.now());
+
+  // localStorage 동기화를 포함한 상태 업데이트 함수들
+  const setProducts = useCallback((value: Product[] | ((prev: Product[]) => Product[])) => {
+    setProductsState(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value;
+      saveToLocalStorage('tad_products', newValue);
+      return newValue;
+    });
+  }, []);
+
+  const setRacks = useCallback((value: Rack[] | ((prev: Rack[]) => Rack[])) => {
+    setRacksState(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value;
+      saveToLocalStorage('tad_racks', newValue);
+      return newValue;
+    });
+  }, []);
+
+  const setCategories = useCallback((value: Category[] | ((prev: Category[]) => Category[])) => {
+    setCategoriesState(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value;
+      saveToLocalStorage('tad_categories', newValue);
+      return newValue;
+    });
+  }, []);
+
+  const setUsers = useCallback((value: User[] | ((prev: User[]) => User[])) => {
+    setUsersState(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value;
+      saveToLocalStorage('tad_users', newValue);
+      return newValue;
+    });
+  }, []);
+
+  const setProductCodes = useCallback((value: ProductCode[] | ((prev: ProductCode[]) => ProductCode[])) => {
+    setProductCodesState(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value;
+      saveToLocalStorage('tad_productCodes', newValue);
+      return newValue;
+    });
+  }, []);
+
+  const setStockMovements = useCallback((value: StockMovement[] | ((prev: StockMovement[]) => StockMovement[])) => {
+    setStockMovementsState(prev => {
+      const newValue = typeof value === 'function' ? value(prev) : value;
+      saveToLocalStorage('tad_stockMovements', newValue);
+      return newValue;
+    });
+  }, []);
 
   const mapProductFromDb = (dbProduct: any): Product => ({
     id: dbProduct.id,
@@ -399,8 +469,8 @@ export function StorageProvider({ children }: StorageProviderProps) {
           updated_at: new Date().toISOString(),
         };
         
-        // 로컬 상태에 직접 추가
-        setProductCodesState(prev => [...prev, fallbackProductCode]);
+        // 로컬 상태에 직접 추가 (localStorage 동기화 포함)
+        setProductCodes(prev => [...prev, fallbackProductCode]);
         
         console.log('addProductCodeToStorage: Added to local state only:', fallbackProductCode);
         return fallbackProductCode;

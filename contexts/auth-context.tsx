@@ -180,50 +180,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               router.push('/login');
             }
           }
-          
-          // 초기화 완료 표시
-          if (!isInitialized) {
-            setIsInitialized(true);
-            console.log(`AuthProvider: onAuthStateChange - setIsInitialized(true) after ${event}`);
-          }
         } catch (error) {
           console.error(`AuthProvider: onAuthStateChange - Error in ${event}:`, error);
-          // 에러 발생 시에도 초기화 완료로 표시
-          if (!isInitialized) {
-            setIsInitialized(true);
-          }
         }
       }
     );
     
     async function initializeAuth() {
       console.log("AuthProvider: initializeAuth - Calling getSession.");
-      setIsLoading(true); // 초기화 시작 시에만 로딩 설정
+      setIsLoading(true);
       
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (!isMounted) return;
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (!isMounted) return;
 
-      if (error) {
-        console.error("AuthProvider: initializeAuth - Error in getSession:", error.message);
+        if (error) {
+          console.error("AuthProvider: initializeAuth - Error in getSession:", error.message);
+          await updateUserProfile(null);
+        } else {
+          console.log("AuthProvider: initializeAuth - getSession successful, session user:", session?.user?.id || 'null');
+          await updateUserProfile(session?.user || null);
+        }
+      } catch (error) {
+        console.error("AuthProvider: initializeAuth - Unexpected error:", error);
         await updateUserProfile(null);
-      } else {
-        console.log("AuthProvider: initializeAuth - getSession successful, session user:", session?.user?.id || 'null');
-        await updateUserProfile(session?.user || null);
+      } finally {
+        if (isMounted) {
+          setIsInitialized(true);
+          setIsLoading(false);
+          console.log("AuthProvider: initializeAuth - END, initialized and loading finished");
+        }
       }
-      
-      setIsInitialized(true);
-      setIsLoading(false);
-      console.log("AuthProvider: initializeAuth - END, initialized and loading finished");
     }
 
     initializeAuth();
 
+    // 안전장치: 5초 후에도 초기화되지 않으면 강제로 완료
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted && !isInitialized) {
+        console.warn("AuthProvider: Safety timeout - forcing initialization complete");
+        setIsInitialized(true);
+        setIsLoading(false);
+      }
+    }, 5000);
+
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimeout);
       authListener?.subscription.unsubscribe();
       console.log("AuthProvider: useEffect for auth listener - UNMOUNTED.");
     };
-  }, [updateUserProfile, router, pathname, isInitialized]); // isInitialized 의존성 추가
+  }, [updateUserProfile, router, pathname]); // isInitialized 의존성 제거 (무한 루프 방지)
 
 
   const login = async (email: string, password: string): Promise<boolean> => {
