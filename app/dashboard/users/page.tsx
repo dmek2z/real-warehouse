@@ -24,6 +24,7 @@ import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
 import { useStorage } from "@/contexts/storage-context"
 import { useAuth } from "@/contexts/auth-context"
+import { supabase } from "@/lib/supabase"
 
 // Types
 interface Permission {
@@ -318,6 +319,19 @@ export default function UsersPage() {
     if (!validateForm() || !hasPermission("users", "edit")) return
 
     try {
+      // Supabase Auth 이메일 중복 체크
+      const { data, error } = await supabase.auth.admin.listUsers();
+      if (error) throw error;
+      const authUserExists = data.users.some((u) => u.email === formEmail);
+      const appUserExists = users.some((user) => user.email === formEmail);
+      if (authUserExists || appUserExists) {
+        addToast({
+          title: "이메일 중복",
+          description: "이미 등록된 이메일입니다.",
+          variant: "destructive",
+        });
+        return;
+      }
       const newUser = {
         email: formEmail,
         name: formName,
@@ -326,7 +340,6 @@ export default function UsersPage() {
         status: "active" as const,
         permissions: formPermissions,
       }
-
       await addUser(newUser)
       addToast({
         title: "사용자 추가 완료",
@@ -760,20 +773,6 @@ export default function UsersPage() {
                   {formErrors.password && formSubmitAttempted && (
                     <p className="text-sm text-red-500">{formErrors.password}</p>
                   )}
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-role">역할</Label>
-                  <select
-                    id="edit-role"
-                    value={formRole}
-                    onChange={(e) => setFormRole(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                  >
-                    <option value="viewer">뷰어</option>
-                    <option value="manager">매니저</option>
-                    <option value="admin">관리자</option>
-                  </select>
                 </div>
               </div>
             </TabsContent>

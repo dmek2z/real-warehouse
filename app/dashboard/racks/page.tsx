@@ -639,13 +639,17 @@ export default function RackViewPage() {
     try {
         // 새 랙 추가
         for (const newRackData of racksToAdd) {
-            await storageAddRack(newRackData);
+            // products 필드 제외하고 추가
+            const { products, ...rackForDb } = newRackData;
+            await storageAddRack(rackForDb);
         }
         // 기존 랙 업데이트
         for (const rackId in racksToUpdate) {
             const rackToSave = racksToUpdate[rackId];
             if (!rackId.startsWith('temp-')) { // 임시 ID가 아닌 실제 ID를 가진 랙만 업데이트
-                 await storageUpdateRack(rackId, { products: rackToSave.products, line: rackToSave.line, name: rackToSave.name, capacity: rackToSave.capacity });
+                // products 필드 별도 처리
+                await storageUpdateRack(rackId, { line: rackToSave.line, name: rackToSave.name, capacity: rackToSave.capacity });
+                await storageUpdateRack(rackId, { products: rackToSave.products });
             }
         }
         toast({ title: "엑셀 데이터 처리 완료", description: `${successCount}개의 품목이 처리되었습니다.` });
