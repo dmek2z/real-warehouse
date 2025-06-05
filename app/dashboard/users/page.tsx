@@ -547,14 +547,6 @@ export default function UsersPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleOpenPermissionsDialog(user)}
-                        disabled={!hasPermission("users", "edit")}
-                      >
-                        <Shield className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
                         onClick={() => handleOpenDeleteDialog(user)}
                         disabled={!hasPermission("users", "edit")}
                       >

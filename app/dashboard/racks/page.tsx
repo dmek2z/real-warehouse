@@ -506,6 +506,15 @@ export default function RackViewPage() {
             .replace('층', '층')
         }
 
+        // 라인 값 robust 정규화 함수
+        function normalizeLine(val: any) {
+          if (!val) return '';
+          const v = String(val).trim().toUpperCase();
+          if (v.length === 1 && 'ABCDEFGH'.includes(v)) return v;
+          if (v.endsWith('라인')) return v[0];
+          return v;
+        }
+
         // row를 내부 표준 key로 변환
         const normalizedRows = rows.map((row) => {
           const normalizedRow: any = {}
@@ -513,6 +522,8 @@ export default function RackViewPage() {
             const norm = normalizeKey(key)
             normalizedRow[norm] = row[key]
           })
+          // 라인 값도 정규화
+          if (normalizedRow.라인) normalizedRow.라인 = normalizeLine(normalizedRow.라인)
           return normalizedRow
         })
 
@@ -1176,156 +1187,33 @@ export default function RackViewPage() {
         {/* 가로 레이아웃으로 변경된 랙 라인 표시 */}
         <div className="flex flex-col space-y-4">
           <div className="flex overflow-x-auto pb-4">
-            {/* A라인 */}
-            <div className="flex space-x-8">
-              {Object.entries(racksByLine).filter(([line]) => line === "A").map(([line, racksInLine]) => (
-                <LineDropZone
-                  key={line}
-                  line={line}
-                  className="min-w-[150px]"
-                  onRackDrop={handleRackDrop}
-                  filteredRacks={filteredRacks}
-                  selectedRacks={selectedRacks}
-                  onSelectLine={handleSelectLine}
-                >
-                  {racksInLine.length > 0 ? racksInLine.map((rack) => (
-                    <RackComponent
-                      key={rack.id}
-                      rack={rack}
-                      onRackClick={handleRackClick}
-                      onProductDrop={handleProductDrop}
-                      isSelected={selectedRacks.has(rack.id)}
-                      onSelectChange={handleSelectRack}
-                      onCopyRack={handleCopyRack}
-                    />
-                  )) : (
-                    <div className="p-3 rounded-lg border-2 w-28 h-28 flex flex-col items-center justify-center bg-gray-100 border-gray-200">
-                      <p className="text-xs text-gray-500">비어 있음</p>
-                    </div>
-                  )}
-                </LineDropZone>
-              ))}
-            </div>
-            {/* B&C라인 */}
-            <div className="flex gap-x-px ml-8">
-              {ALL_LINES.filter(line => line === "B" || line === "C").map(line => (
-                <LineDropZone
-                  key={line}
-                  line={line}
-                  className="min-w-[150px]"
-                  onRackDrop={handleRackDrop}
-                  filteredRacks={filteredRacks}
-                  selectedRacks={selectedRacks}
-                  onSelectLine={handleSelectLine}
-                >
-                  {racksByLine[line]?.length > 0 ? racksByLine[line].map((rack) => (
-                    <RackComponent
-                      key={rack.id}
-                      rack={rack}
-                      onRackClick={handleRackClick}
-                      onProductDrop={handleProductDrop}
-                      isSelected={selectedRacks.has(rack.id)}
-                      onSelectChange={handleSelectRack}
-                      onCopyRack={handleCopyRack}
-                    />
-                  )) : (
-                    <div className="p-3 rounded-lg border-2 w-28 h-28 flex flex-col items-center justify-center bg-gray-100 border-gray-200">
-                      <p className="text-xs text-gray-500">비어 있음</p>
-                    </div>
-                  )}
-                </LineDropZone>
-              ))}
-            </div>
-            {/* D&E라인 */}
-            <div className="flex gap-x-px ml-8">
-              {ALL_LINES.filter(line => line === "D" || line === "E").map(line => (
-                <LineDropZone
-                  key={line}
-                  line={line}
-                  className="min-w-[150px]"
-                  onRackDrop={handleRackDrop}
-                  filteredRacks={filteredRacks}
-                  selectedRacks={selectedRacks}
-                  onSelectLine={handleSelectLine}
-                >
-                  {racksByLine[line]?.length > 0 ? racksByLine[line].map((rack) => (
-                    <RackComponent
-                      key={rack.id}
-                      rack={rack}
-                      onRackClick={handleRackClick}
-                      onProductDrop={handleProductDrop}
-                      isSelected={selectedRacks.has(rack.id)}
-                      onSelectChange={handleSelectRack}
-                      onCopyRack={handleCopyRack}
-                    />
-                  )) : (
-                    <div className="p-3 rounded-lg border-2 w-28 h-28 flex flex-col items-center justify-center bg-gray-100 border-gray-200">
-                      <p className="text-xs text-gray-500">비어 있음</p>
-                    </div>
-                  )}
-                </LineDropZone>
-              ))}
-            </div>
-            {/* F&G라인 */}
-            <div className="flex gap-x-px ml-8">
-              {ALL_LINES.filter(line => line === "F" || line === "G").map(line => (
-                <LineDropZone
-                  key={line}
-                  line={line}
-                  className="min-w-[150px]"
-                  onRackDrop={handleRackDrop}
-                  filteredRacks={filteredRacks}
-                  selectedRacks={selectedRacks}
-                  onSelectLine={handleSelectLine}
-                >
-                  {racksByLine[line]?.length > 0 ? racksByLine[line].map((rack) => (
-                    <RackComponent
-                      key={rack.id}
-                      rack={rack}
-                      onRackClick={handleRackClick}
-                      onProductDrop={handleProductDrop}
-                      isSelected={selectedRacks.has(rack.id)}
-                      onSelectChange={handleSelectRack}
-                      onCopyRack={handleCopyRack}
-                    />
-                  )) : (
-                    <div className="p-3 rounded-lg border-2 w-28 h-28 flex flex-col items-center justify-center bg-gray-100 border-gray-200">
-                      <p className="text-xs text-gray-500">비어 있음</p>
-                    </div>
-                  )}
-                </LineDropZone>
-              ))}
-            </div>
-            {/* H라인 */}
-            <div className="flex space-x-8 ml-8">
-              {Object.entries(racksByLine).filter(([line]) => line === "H").map(([line, racksInLine]) => (
-                <LineDropZone
-                  key={line}
-                  line={line}
-                  className="min-w-[150px]"
-                  onRackDrop={handleRackDrop}
-                  filteredRacks={filteredRacks}
-                  selectedRacks={selectedRacks}
-                  onSelectLine={handleSelectLine}
-                >
-                  {racksInLine.length > 0 ? racksInLine.map((rack) => (
-                    <RackComponent
-                      key={rack.id}
-                      rack={rack}
-                      onRackClick={handleRackClick}
-                      onProductDrop={handleProductDrop}
-                      isSelected={selectedRacks.has(rack.id)}
-                      onSelectChange={handleSelectRack}
-                      onCopyRack={handleCopyRack}
-                    />
-                  )) : (
-                    <div className="p-3 rounded-lg border-2 w-28 h-28 flex flex-col items-center justify-center bg-gray-100 border-gray-200">
-                      <p className="text-xs text-gray-500">비어 있음</p>
-                    </div>
-                  )}
-                </LineDropZone>
-              ))}
-            </div>
+            {ALL_LINES.map((line) => (
+              <LineDropZone
+                key={line}
+                line={line}
+                className="min-w-[150px]"
+                onRackDrop={handleRackDrop}
+                filteredRacks={filteredRacks}
+                selectedRacks={selectedRacks}
+                onSelectLine={handleSelectLine}
+              >
+                {racksByLine[line]?.length > 0 ? racksByLine[line].map((rack) => (
+                  <RackComponent
+                    key={rack.id}
+                    rack={rack}
+                    onRackClick={handleRackClick}
+                    onProductDrop={handleProductDrop}
+                    isSelected={selectedRacks.has(rack.id)}
+                    onSelectChange={handleSelectRack}
+                    onCopyRack={handleCopyRack}
+                  />
+                )) : (
+                  <div className="p-3 rounded-lg border-2 w-28 h-28 flex flex-col items-center justify-center bg-gray-100 border-gray-200">
+                    <p className="text-xs text-gray-500">비어 있음</p>
+                  </div>
+                )}
+              </LineDropZone>
+            ))}
           </div>
         </div>
 
