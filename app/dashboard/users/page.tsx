@@ -319,12 +319,9 @@ export default function UsersPage() {
     if (!validateForm() || !hasPermission("users", "edit")) return
 
     try {
-      // Supabase Auth 이메일 중복 체크
-      const { data, error } = await supabaseAdmin.auth.admin.listUsers();
-      if (error) throw error;
-      const authUserExists = data.users.some((u) => u.email === formEmail);
+      // 앱 내 이메일 중복 체크
       const appUserExists = users.some((user) => user.email === formEmail);
-      if (authUserExists || appUserExists) {
+      if (appUserExists) {
         addToast({
           title: "이메일 중복",
           description: "이미 등록된 이메일입니다.",
@@ -333,14 +330,25 @@ export default function UsersPage() {
         return;
       }
 
-      // Supabase Auth에 사용자 생성
+      // Supabase Auth에 사용자 생성 (보다 안전한 설정)
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: formEmail,
         password: formPassword,
-        email_confirm: true
+        email_confirm: true, // 이메일 확인 자동으로 완료
+        user_metadata: {
+          name: formName,
+          role: formRole
+        }
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        console.error('Supabase Auth error:', authError);
+        throw new Error(`사용자 생성 실패: ${authError.message}`);
+      }
+
+      if (!authData.user) {
+        throw new Error('사용자 데이터가 생성되지 않았습니다.');
+      }
 
       const newUser = {
         id: authData.user.id,
@@ -357,11 +365,11 @@ export default function UsersPage() {
       })
       resetForm()
       setAddDialogOpen(false)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding user:', error)
       addToast({
         title: "사용자 추가 실패",
-        description: "사용자를 추가하는 중 오류가 발생했습니다.",
+        description: error.message || "사용자를 추가하는 중 오류가 발생했습니다.",
         variant: "destructive",
       })
     }

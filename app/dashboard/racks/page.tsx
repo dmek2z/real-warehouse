@@ -276,7 +276,7 @@ const LineDropZone: React.FC<LineDropZoneProps> = ({ line, children, className =
 export default function RackViewPage() {
   const { racks, addRack: storageAddRack, updateRack: storageUpdateRack, deleteRack: storageDeleteRack, productCodes, isLoading } = useStorage()
   const { hasPermission } = useAuth()
-  const { toast } = useToast()
+  const { addToast } = useToast()
 
   // 상태 관리
   const [selectedRack, setSelectedRack] = useState<ReturnType<typeof useStorage>['racks'][0] | null>(null);
@@ -413,10 +413,10 @@ export default function RackViewPage() {
     try {
         await storageUpdateRack(selectedRack.id, { products: updatedProducts });
         setSelectedRack(prev => prev ? { ...prev, products: updatedProducts } : null);
-        toast({ title: "품목 추가 완료", description: `${itemsToAdd.length}개의 품목이 랙에 추가되었습니다.` });
+        addToast({ title: "품목 추가 완료", description: `${itemsToAdd.length}개의 품목이 랙에 추가되었습니다.` });
     } catch (error) {
         console.error("Error adding items to rack:", error);
-        toast({ title: "품목 추가 실패", description: "품목을 랙에 추가하는 중 오류가 발생했습니다.", variant: "destructive" });
+        addToast({ title: "품목 추가 실패", description: "품목을 랙에 추가하는 중 오류가 발생했습니다.", variant: "destructive" });
     } finally {
         setSearchProductQuery("");
         setSelectedProductIds(new Set());
@@ -465,10 +465,10 @@ export default function RackViewPage() {
 
     try {
       await storageAddRack(newRackData)
-      toast({ title: "랙 복사 완료", description: `랙 "${newRackName}"이(가) 복사되었습니다.` })
+      addToast({ title: "랙 복사 완료", description: `랙 "${newRackName}"이(가) 복사되었습니다.` })
     } catch (error) {
       console.error('Error copying rack:', error)
-      toast({ title: "랙 복사 실패", description: "랙을 복사하는 중 오류가 발생했습니다.", variant: "destructive" })
+      addToast({ title: "랙 복사 실패", description: "랙을 복사하는 중 오류가 발생했습니다.", variant: "destructive" })
     }
   }
 
@@ -530,7 +530,8 @@ export default function RackViewPage() {
         // 데이터 검증
         const currentUploadErrors: string[] = [] // 지역 변수로 변경
         const validRows: any[] = [] // 타입 명시
-        const existingLines = new Set(racks.map((rack) => rack.line))
+        // 유효한 라인 목록 (상수로 정의 - 랙이 없어도 라인은 존재해야 함)
+        const validLines = new Set(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])
         const existingProductCodesSet = new Set(productCodes.map((product) => product.code)) // Set으로 변경하여 성능 향상
 
         normalizedRows.forEach((row, index) => {
@@ -545,8 +546,8 @@ export default function RackViewPage() {
             return
           }
 
-          if (!existingLines.has(line)) {
-            currentUploadErrors.push(`행 ${index + 2}: 존재하지 않는 라인 "${line}"입니다.`)
+          if (!validLines.has(line)) {
+            currentUploadErrors.push(`행 ${index + 2}: 유효하지 않은 라인 "${line}"입니다. (A~H만 가능)`)
             return
           }
 
@@ -691,10 +692,10 @@ export default function RackViewPage() {
                 await storageUpdateRack(rackId, { products: rackToSave.products });
             }
         }
-        toast({ title: "엑셀 데이터 처리 완료", description: `${successCount}개의 품목이 처리되었습니다.` });
+        addToast({ title: "엑셀 데이터 처리 완료", description: `${successCount}개의 품목이 처리되었습니다.` });
     } catch (error) {
         console.error("Error processing excel data:", error);
-        toast({ title: "엑셀 데이터 처리 실패", description: "데이터를 저장하는 중 오류가 발생했습니다.", variant: "destructive" });
+        addToast({ title: "엑셀 데이터 처리 실패", description: "데이터를 저장하는 중 오류가 발생했습니다.", variant: "destructive" });
         currentUploadErrors.push("데이터베이스 저장 중 오류 발생");
     }
 
@@ -730,10 +731,10 @@ export default function RackViewPage() {
     try {
       await storageUpdateRack(sourceRackId, { products: updatedSourceProducts });
       await storageUpdateRack(targetRackId, { products: updatedTargetProducts });
-      toast({ title: "품목 이동 완료", description: `품목이 ${sourceRack.name}에서 ${targetRack.name}(으)로 이동되었습니다.` });
+      addToast({ title: "품목 이동 완료", description: `품목이 ${sourceRack.name}에서 ${targetRack.name}(으)로 이동되었습니다.` });
     } catch (error) {
       console.error('Error moving product:', error);
-      toast({ title: "품목 이동 실패", description: "품목을 이동하는 중 오류가 발생했습니다.", variant: "destructive" });
+      addToast({ title: "품목 이동 실패", description: "품목을 이동하는 중 오류가 발생했습니다.", variant: "destructive" });
     }
   }
 
@@ -806,7 +807,7 @@ export default function RackViewPage() {
       for (const rackId of Array.from(selectedRacks)) {
         await storageDeleteRack(rackId as string) // 타입 단언
       }
-      toast({
+      addToast({
         title: "랙 삭제 완료",
         description: "선택한 랙이 삭제되었습니다.",
       })
@@ -814,7 +815,7 @@ export default function RackViewPage() {
       setSelectAll(false); // 전체 선택 해제
     } catch (error) {
       console.error('Error deleting racks:', error)
-      toast({
+      addToast({
         title: "랙 삭제 실패",
         description: "랙을 삭제하는 중 오류가 발생했습니다.",
         variant: "destructive",
@@ -835,10 +836,10 @@ export default function RackViewPage() {
       setSelectedRack((prev) => prev ? { ...prev, products: updatedProducts } : null);
       setSelectedItems(new Set());
       setSelectAllItems(false);
-      toast({ title: "품목 삭제 완료", description: `${selectedItemIds.length}개의 품목이 삭제되었습니다.` });
+      addToast({ title: "품목 삭제 완료", description: `${selectedItemIds.length}개의 품목이 삭제되었습니다.` });
     } catch (error) {
       console.error("Error deleting selected items from rack:", error);
-      toast({ title: "품목 삭제 실패", description: "품목을 삭제하는 중 오류가 발생했습니다.", variant: "destructive" });
+      addToast({ title: "품목 삭제 실패", description: "품목을 삭제하는 중 오류가 발생했습니다.", variant: "destructive" });
     }
   }
 
@@ -849,7 +850,7 @@ export default function RackViewPage() {
 
     const targetRack = racks.find((r) => r.id === targetRackForMove);
     if (!targetRack) {
-        toast({ title: "오류", description: "대상 랙을 찾을 수 없습니다.", variant: "destructive" });
+        addToast({ title: "오류", description: "대상 랙을 찾을 수 없습니다.", variant: "destructive" });
         return;
     }
 
@@ -866,10 +867,10 @@ export default function RackViewPage() {
         setSelectAllItems(false);
         setIsMoveItemsDialogOpen(false);
         setTargetRackForMove(""); // 대상 랙 선택 초기화
-        toast({ title: "품목 이동 완료", description: `${itemsToMove.length}개의 품목이 ${targetRack.name}(으)로 이동되었습니다.` });
+        addToast({ title: "품목 이동 완료", description: `${itemsToMove.length}개의 품목이 ${targetRack.name}(으)로 이동되었습니다.` });
     } catch (error) {
         console.error("Error moving items:", error);
-        toast({ title: "품목 이동 실패", description: "품목을 이동하는 중 오류가 발생했습니다.", variant: "destructive" });
+        addToast({ title: "품목 이동 실패", description: "품목을 이동하는 중 오류가 발생했습니다.", variant: "destructive" });
     }
 };
 
@@ -878,21 +879,31 @@ export default function RackViewPage() {
   const handleAddRack = async () => {
     if (!formName.trim() || !hasPermission("racks", "edit")) return
 
+    // 같은 라인에 같은 이름의 랙이 있는지 확인
+    const isDuplicate = racks.some(rack => rack.line === formLine && rack.name === formName.trim())
+    if (isDuplicate) {
+      addToast({ 
+        title: "랙 추가 실패", 
+        description: `${formLine} 라인에 이미 "${formName}" 랙이 존재합니다.`,
+        variant: "destructive" 
+      });
+      return;
+    }
+
     try {
       const newRackData = {
-        name: formName,
+        name: formName.trim(),
         products: [],
         capacity: 100,
         line: formLine
       };
       await storageAddRack(newRackData);
-      toast({ title: "랙 추가 완료", description: "새로운 랙이 추가되었습니다." });
+      addToast({ title: "랙 추가 완료", description: "새로운 랙이 추가되었습니다." });
       localResetForm();
+      setIsAddDialogOpen(false);
     } catch (error) {
       console.error('Error adding rack:', error);
-      toast({ title: "랙 추가 실패", description: "랙을 추가하는 중 오류가 발생했습니다.", variant: "destructive" });
-    } finally {
-      setIsAddDialogOpen(false);
+      addToast({ title: "랙 추가 실패", description: "랙을 추가하는 중 오류가 발생했습니다.", variant: "destructive" });
     }
   }
 
@@ -906,7 +917,7 @@ export default function RackViewPage() {
         name: formName,
         line: formLine
       })
-      toast({
+      addToast({
         title: "랙 수정 완료",
         description: "랙 정보가 수정되었습니다.",
       })
@@ -914,7 +925,7 @@ export default function RackViewPage() {
       localResetForm() // resetForm을 localResetForm으로 변경
     } catch (error) {
       console.error('Error updating rack:', error)
-      toast({
+      addToast({
         title: "랙 수정 실패",
         description: "랙을 수정하는 중 오류가 발생했습니다.",
         variant: "destructive",
@@ -931,10 +942,10 @@ export default function RackViewPage() {
         await storageUpdateRack(selectedRack.id, { name: editedRackName });
         setSelectedRack(prev => prev ? { ...prev, name: editedRackName } : null);
         setIsEditingRackName(false);
-        toast({ title: "랙 이름 수정 완료", description: `랙 이름이 "${editedRackName}"(으)로 변경되었습니다.` });
+        addToast({ title: "랙 이름 수정 완료", description: `랙 이름이 "${editedRackName}"(으)로 변경되었습니다.` });
     } catch (error) {
         console.error("Error editing rack name:", error);
-        toast({ title: "랙 이름 수정 실패", description: "랙 이름을 수정하는 중 오류가 발생했습니다.", variant: "destructive" });
+        addToast({ title: "랙 이름 수정 실패", description: "랙 이름을 수정하는 중 오류가 발생했습니다.", variant: "destructive" });
     }
 };
 
@@ -969,13 +980,13 @@ export default function RackViewPage() {
 
     try {
       await storageUpdateRack(rackId, { line: targetLine })
-      toast({
+      addToast({
         title: "랙 이동 완료",
         description: "랙이 이동되었습니다.",
       })
     } catch (error) {
       console.error('Error moving rack:', error)
-      toast({
+      addToast({
         title: "랙 이동 실패",
         description: "랙을 이동하는 중 오류가 발생했습니다.",
         variant: "destructive",
@@ -1058,13 +1069,13 @@ export default function RackViewPage() {
 
     try {
         await Promise.all(updates);
-        toast({ title: "일괄 이동 완료", description: `${selectedRacks.size}개의 랙이 ${bulkTargetLine} 라인으로 이동되었습니다.` });
+        addToast({ title: "일괄 이동 완료", description: `${selectedRacks.size}개의 랙이 ${bulkTargetLine} 라인으로 이동되었습니다.` });
         setSelectedRacks(new Set()); // 선택 해제
         setSelectAll(false); // 전체 선택 해제
         setIsBulkEditDialogOpen(false);
     } catch (error) {
         console.error("Error bulk moving racks:", error);
-        toast({ title: "일괄 이동 실패", description: "랙을 이동하는 중 오류가 발생했습니다.", variant: "destructive" });
+        addToast({ title: "일괄 이동 실패", description: "랙을 이동하는 중 오류가 발생했습니다.", variant: "destructive" });
     }
 };
 
