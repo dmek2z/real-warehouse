@@ -9,7 +9,7 @@ import {
   addUser as apiAddUser, updateUser as apiUpdateUser, deleteUser as apiDeleteUser,
   addProductCode as apiAddProductCode, updateProductCode as apiUpdateProductCode, deleteProductCode as apiDeleteProductCode
 } from '@/lib/api';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
 
 // Types
 export interface Product {
@@ -226,12 +226,12 @@ export function StorageProvider({ children }: StorageProviderProps) {
           productCodesDataDb, 
           activityLogsDataDb
         ] = await Promise.all([
-          supabase.from('products').select('*'),
-          supabase.from('racks').select('*, rack_products(product_id, floor, inbound_date, outbound_date)'),
-          supabase.from('categories').select('*').order('name'),
-          supabase.from('users').select('*').order('name'),
-          supabase.from('product_codes').select('*, category_id').order('code'),
-          supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(50)
+          supabaseAdmin.from('products').select('*'),
+          supabaseAdmin.from('racks').select('*, rack_products(product_id, floor, inbound_date, outbound_date)'),
+          supabaseAdmin.from('categories').select('*').order('name'),
+          supabaseAdmin.from('users').select('*').order('name'),
+          supabaseAdmin.from('product_codes').select('*, category_id').order('code'),
+          supabaseAdmin.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(50)
         ]);
 
         const errors = [

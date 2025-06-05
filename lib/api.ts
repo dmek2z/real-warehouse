@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase, supabaseAdmin } from './supabaseClient';
 import type { Product, Rack, Category, ProductCode, User } from '@/contexts/storage-context';
 
 // Error handling utility
@@ -33,7 +33,7 @@ export async function addProduct(product: Omit<Product, 'id'>) {
     const productDataForDb = {
       ...product,
     };
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('products')
       .insert([productDataForDb])
       .select();
