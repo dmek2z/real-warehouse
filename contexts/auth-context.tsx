@@ -22,6 +22,7 @@ export interface User {
 interface AuthContextType {
   user: User | null
   isLoading: boolean
+  isInitialized: boolean
   login: (email: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
   hasPermission: (pageId: string, permissionType: "view" | "edit") => boolean
@@ -55,7 +56,8 @@ const eraseCookie = (name: string) => {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // 초기값을 false로 변경
+  const [isInitialized, setIsInitialized] = useState(false); // 초기화 여부 추가
   const router = useRouter();
   const pathname = usePathname();
 
@@ -161,9 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // console.log("AuthProvider: useEffect for auth listener - START. Pathname:", pathname);
-    // 초기 로딩 상태를 true로 설정하는 것을 리스너 등록 직전으로 옮김.
-    // 이렇게 하면 초기 getSession 호출 전에 리스너가 먼저 반응할 기회를 줌.
+    console.log("AuthProvider: useEffect for auth listener - START. Pathname:", pathname);
     
     let isMounted = true;
     
@@ -172,38 +172,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!isMounted) return;
         console.log(`AuthProvider: onAuthStateChange - Event: ${event}, User: ${session?.user?.id || 'null'}`);
 
-        // 모든 중요한 세션 변경 이벤트 시작 시 로딩 상태로 설정
-        if (['INITIAL_SESSION', 'SIGNED_IN', 'SIGNED_OUT'].includes(event)) {
-          setIsLoading(true);
-          // console.log(`AuthProvider: onAuthStateChange - setIsLoading(true) for ${event}`);
-        }
+        try {
+          await updateUserProfile(session?.user || null);
 
-        await updateUserProfile(session?.user || null);
-
-        if (event === 'SIGNED_OUT') {
-          if (pathname !== '/login') {
-            router.push('/login');
+          if (event === 'SIGNED_OUT') {
+            if (pathname !== '/login') {
+              router.push('/login');
+            }
           }
-        }
-        
-        // 사용자 프로필 업데이트 후, 중요한 세션 이벤트가 완료되면 로딩 상태 해제
-        if (['INITIAL_SESSION', 'SIGNED_IN', 'SIGNED_OUT'].includes(event)) {
-          setIsLoading(false);
-          // console.log(`AuthProvider: onAuthStateChange - setIsLoading(false) after ${event}`);
+          
+          // 초기화 완료 표시
+          if (!isInitialized) {
+            setIsInitialized(true);
+            console.log(`AuthProvider: onAuthStateChange - setIsInitialized(true) after ${event}`);
+          }
+        } catch (error) {
+          console.error(`AuthProvider: onAuthStateChange - Error in ${event}:`, error);
+          // 에러 발생 시에도 초기화 완료로 표시
+          if (!isInitialized) {
+            setIsInitialized(true);
+          }
         }
       }
     );
     
-    // 초기 세션 정보를 가져와서 상태를 설정합니다.
-    // onAuthStateChange가 INITIAL_SESSION을 발생시키지만, 만약을 위해 getSession도 호출.
-    // 단, getSession의 결과로 isLoading을 직접 false로 바꾸는 것은 onAuthStateChange와 충돌 가능성이 있으므로
-    // updateUserProfile만 호출하고, isLoading은 onAuthStateChange가 INITIAL_SESSION을 통해 관리하도록 함.
-    // 그러나, 만약 onAuthStateChange가 INITIAL_SESSION을 늦게 발생시키거나 발생시키지 않는다면
-    // isLoading이 계속 true로 남아있을 수 있습니다.
-    // 이 문제를 해결하기 위해, getSession 후 user 상태에 따라 isLoading을 직접 제어하는 로직을 추가합니다.
     async function initializeAuth() {
-      // console.log("AuthProvider: initializeAuth - Calling getSession.");
-      setIsLoading(true); // 명시적으로 로딩 시작
+      console.log("AuthProvider: initializeAuth - Calling getSession.");
+      setIsLoading(true); // 초기화 시작 시에만 로딩 설정
+      
       const { data: { session }, error } = await supabase.auth.getSession();
       if (!isMounted) return;
 
@@ -211,14 +207,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error("AuthProvider: initializeAuth - Error in getSession:", error.message);
         await updateUserProfile(null);
       } else {
-        // console.log("AuthProvider: initializeAuth - getSession successful, session user:", session?.user?.id || 'null');
+        console.log("AuthProvider: initializeAuth - getSession successful, session user:", session?.user?.id || 'null');
         await updateUserProfile(session?.user || null);
       }
-      // onAuthStateChange가 INITIAL_SESSION을 통해 isLoading을 false로 설정할 때까지 기다리지 않고,
-      // getSession의 결과를 바탕으로 바로 isLoading 상태를 설정합니다.
-      // 이렇게 하면 새로고침 시 "Loading application..."에서 멈추는 현상을 해결하는 데 도움이 될 수 있습니다.
+      
+      setIsInitialized(true);
       setIsLoading(false);
-      // console.log("AuthProvider: initializeAuth - setIsLoading(false). User set to:", session?.user?.id || 'null');
+      console.log("AuthProvider: initializeAuth - END, initialized and loading finished");
     }
 
     initializeAuth();
@@ -226,9 +221,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
       authListener?.subscription.unsubscribe();
-      // console.log("AuthProvider: useEffect for auth listener - UNMOUNTED.");
+      console.log("AuthProvider: useEffect for auth listener - UNMOUNTED.");
     };
-  }, [updateUserProfile, router, pathname]); // 의존성 배열에 router, pathname 추가
+  }, [updateUserProfile, router, pathname, isInitialized]); // isInitialized 의존성 추가
 
 
   const login = async (email: string, password: string): Promise<boolean> => {
@@ -282,10 +277,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const authContextValue = React.useMemo(() => ({
     user,
     isLoading,
+    isInitialized,
     login,
     logout,
     hasPermission,
-  }), [user, isLoading, hasPermission, login, logout]); // login, logout 함수 참조가 변경되지 않도록 useCallback 적용 고려
+  }), [user, isLoading, isInitialized, hasPermission]); // login, logout 함수 참조가 변경되지 않도록 useCallback 적용 고려
 
   return (
     <AuthContext.Provider value={authContextValue}>

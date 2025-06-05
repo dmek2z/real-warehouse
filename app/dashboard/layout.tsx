@@ -41,19 +41,19 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const { user, logout, isLoading: authIsLoading, hasPermission } = useAuth(); // user도 가져옵니다.
+  const { user, logout, isLoading: authIsLoading, isInitialized, hasPermission } = useAuth(); // isInitialized도 가져옵니다.
 
   const accessibleNavItems = navItems.filter((item) => {
-    if (authIsLoading) return false; // 로딩 중에는 메뉴를 계산하지 않거나 빈 배열 반환
+    if (!isInitialized || authIsLoading) return false; // 초기화되지 않았거나 로딩 중에는 메뉴를 계산하지 않음
     if (item.id === "settings") return !!user; 
     return hasPermission(item.id, "view");
   });
 
-  // ** 로딩 조건 변경: authIsLoading이 true인 동안만 로딩 화면 표시 **
-  if (authIsLoading) {
+  // ** 로딩 조건 변경: 초기화되지 않았거나 authIsLoading이 true인 동안만 로딩 화면 표시 **
+  if (!isInitialized || authIsLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <p>Loading application (authIsLoading is true)...</p>
+        <p>Loading application...</p>
       </div>
     );
   }
