@@ -61,7 +61,8 @@ export default function LoginPage() {
         const success = await login(savedId, savedPassword);
         if (success) {
           console.log("LoginPage: Auto login successful for", savedId);
-          router.push("/dashboard"); // 성공 시 대시보드로 이동
+          // AuthProvider에서 자동 리다이렉트를 처리하므로 여기서는 제거
+          // router.push("/dashboard");
         } else {
           localStorage.removeItem("savedPassword");
           console.warn("LoginPage: Auto login failed for", savedId);
@@ -107,7 +108,8 @@ export default function LoginPage() {
 
       if (success) {
         console.log("LoginPage: Manual login successful for", userId);
-        router.push("/dashboard"); // 성공 시 대시보드로 이동
+        // AuthProvider에서 자동 리다이렉트를 처리하므로 여기서는 제거
+        // router.push("/dashboard"); 
       } else {
         alert("아이디 또는 비밀번호가 올바르지 않습니다.");
         setIsSubmitting(false);

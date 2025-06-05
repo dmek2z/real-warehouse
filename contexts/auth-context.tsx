@@ -178,6 +178,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           await updateUserProfile(session?.user || null);
 
+          // 중요한 인증 이벤트 후 로딩 상태 해제
+          if (['SIGNED_IN', 'SIGNED_OUT'].includes(event)) {
+            setIsLoading(false);
+            console.log(`AuthProvider: onAuthStateChange - setIsLoading(false) after ${event}`);
+          }
+
           if (event === 'SIGNED_OUT') {
             if (pathname !== '/login') {
               router.push('/login');
@@ -186,12 +192,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           // 로그인 성공 시 대시보드로 리다이렉트
           if (event === 'SIGNED_IN' && session?.user) {
+            console.log('AuthProvider: SIGNED_IN - redirecting to dashboard');
             if (pathname === '/login') {
               router.push('/dashboard');
             }
           }
         } catch (error) {
           console.error(`AuthProvider: onAuthStateChange - Error in ${event}:`, error);
+          // 에러 발생 시에도 로딩 해제
+          if (['SIGNED_IN', 'SIGNED_OUT'].includes(event)) {
+            setIsLoading(false);
+          }
         }
       }
     );
@@ -270,6 +281,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // 로그인 성공 - onAuthStateChange가 SIGNED_IN 이벤트를 처리할 것임
       console.log("AuthProvider: login - Success, waiting for auth state change");
+      
+      // 안전장치: 3초 후에도 로딩이 해제되지 않으면 강제 해제
+      setTimeout(() => {
+        if (isLoading) {
+          console.warn("AuthProvider: login - Timeout fallback, forcing isLoading false");
+          setIsLoading(false);
+        }
+      }, 3000);
+      
       return true;
     } catch (error: any) {
       console.error('AuthProvider: login - Overall error:', error.message);

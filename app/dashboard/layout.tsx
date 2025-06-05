@@ -49,11 +49,19 @@ export default function DashboardLayout({
     return hasPermission(item.id, "view");
   });
 
+  // 디버깅을 위한 상태 로그
+  console.log('DashboardLayout: isInitialized =', isInitialized, 'authIsLoading =', authIsLoading, 'user =', user?.id || 'null');
+
   // ** 로딩 조건 변경: 초기화되지 않았거나 authIsLoading이 true인 동안만 로딩 화면 표시 **
   if (!isInitialized || authIsLoading) {
+    console.log('DashboardLayout: Showing loading screen - isInitialized:', isInitialized, 'authIsLoading:', authIsLoading);
     return (
       <div className="flex h-screen items-center justify-center">
-        <p>Loading application...</p>
+        <div className="flex flex-col items-center gap-2">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
+          <p>Loading application...</p>
+          <p className="text-xs text-gray-500">isInitialized: {String(isInitialized)}, isLoading: {String(authIsLoading)}</p>
+        </div>
       </div>
     );
   }
