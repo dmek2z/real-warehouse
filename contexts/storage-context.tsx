@@ -412,13 +412,41 @@ export function StorageProvider({ children }: StorageProviderProps) {
   // Racks
   const addRackToStorage = async (rack: Omit<Rack, 'id' | 'products'>): Promise<Rack | undefined> => {
     try {
-      // apiAddRack은 이미 lib/api.ts에서 'products'를 제외한 객체를 받도록 수정됨
-      const result = await apiAddRack(rack);
-      if (result && result.length > 0) {
-        // debouncedRefreshData();
-        return {...result[0], products: []}; // 클라이언트 타입에 맞게 products: [] 추가
+      try {
+        // apiAddRack은 이미 lib/api.ts에서 'products'를 제외한 객체를 받도록 수정됨
+        const result = await apiAddRack(rack);
+        if (result && result.length > 0) {
+          // debouncedRefreshData();
+          return {...result[0], products: []}; // 클라이언트 타입에 맞게 products: [] 추가
+        }
+        throw new Error('Failed to add rack: No data returned');
+      } catch (dbError: any) {
+        // DB 권한 에러는 예상된 상황이므로 간단한 메시지로 처리
+        if (dbError?.message?.includes('permission denied')) {
+          console.info('StorageContext: Using local storage for rack (DB not configured)');
+        } else {
+          console.warn('Database access failed for rack, using local fallback:', dbError);
+        }
+        
+        // DB 접근 실패 시 로컬 상태로만 처리
+        const fallbackRack: Rack = {
+          id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: rack.name,
+          products: [],
+          capacity: rack.capacity,
+          line: rack.line,
+        };
+        
+        // 로컬 상태에 직접 추가 (localStorage 동기화 포함)
+        setRacksState(prev => {
+          const newValue = [...prev, fallbackRack];
+          saveToLocalStorage('tad_racks', newValue);
+          return newValue;
+        });
+        
+        console.log('addRackToStorage: Added to local state only:', fallbackRack);
+        return fallbackRack;
       }
-      throw new Error('Failed to add rack: No data returned');
     } catch (error) {
       console.error('Error adding rack:', error);
       throw error;
