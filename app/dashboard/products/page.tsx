@@ -328,18 +328,37 @@ export default function ProductCodesPage() {
         코드: "PROD-001",
         이름: "제품 예시 1",
         설명: "제품 설명 예시입니다",
-        카테고리: categories.length > 0 ? categories[0].name : "",
+        카테고리: categories.length > 0 ? `"${categories[0].name}"` : "",
       },
       {
         코드: "PROD-002",
         이름: "제품 예시 2",
         설명: "두 번째 제품 설명입니다",
-        카테고리: categories.length > 1 ? categories[1].name : "",
+        카테고리: categories.length > 1 ? `"${categories[1].name}"` : "",
       },
     ]
 
+    // 추가로 카테고리 목록을 설명으로 추가
+    if (categories.length > 0) {
+      sampleData.push({
+        코드: "",
+        이름: "",
+        설명: `사용 가능한 카테고리: ${categories.map(c => `"${c.name}"`).join(", ")}`,
+        카테고리: "",
+      })
+    }
+
     // 워크시트 생성
     const ws = XLSX.utils.json_to_sheet(sampleData)
+
+    // 카테고리 컬럼을 텍스트 형식으로 설정
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+    for (let row = 1; row <= range.e.r; row++) {
+      const cellRef = XLSX.utils.encode_cell({ r: row, c: 3 }) // 카테고리는 4번째 컬럼 (인덱스 3)
+      if (ws[cellRef]) {
+        ws[cellRef].t = 's' // 's'는 문자열 타입
+      }
+    }
 
     // 워크북 생성
     const wb = XLSX.utils.book_new()
@@ -401,18 +420,28 @@ export default function ProductCodesPage() {
             return
           }
 
+          // 카테고리 값을 문자열로 변환 (엑셀에서 숫자로 읽힐 수 있음)
+          let categoryValue = row["카테고리"] ? String(row["카테고리"]).trim() : ""
+          
+          // 따옴표로 둘러싸인 경우 제거
+          if (categoryValue.startsWith('"') && categoryValue.endsWith('"')) {
+            categoryValue = categoryValue.slice(1, -1).trim()
+          }
+
           // 카테고리 확인
-          if (row["카테고리"] && !existingCategories.includes(row["카테고리"])) {
-            errors.push(`${rowNum}행: 카테고리 "${row["카테고리"]}"가 존재하지 않습니다.`)
+          if (categoryValue && !existingCategories.includes(categoryValue)) {
+            errors.push(`${rowNum}행: 카테고리 "${categoryValue}"가 존재하지 않습니다.`)
+            console.log('Available categories:', existingCategories)
+            console.log('Input category:', categoryValue, 'Type:', typeof categoryValue)
             return
           }
 
           // 유효한 데이터 추가
           validData.push({
-            code: row["코드"],
-            name: row["이름"] || "",
-            description: row["설명"] || "",
-            category: row["카테고리"] || "",
+            code: String(row["코드"]).trim(),
+            name: row["이름"] ? String(row["이름"]).trim() : "",
+            description: row["설명"] ? String(row["설명"]).trim() : "",
+            category: categoryValue,
           })
         })
 
