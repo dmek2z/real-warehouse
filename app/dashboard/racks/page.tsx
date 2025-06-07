@@ -679,17 +679,31 @@ export default function RackViewPage() {
     }
 
     try {
-        // 새 랙 추가
+        // 새 랙 추가 및 품목 추가
         for (const newRackData of racksToAdd) {
             const { products, ...rackForDb } = newRackData;
-            await storageAddRack(rackForDb);
+            const createdRack = await storageAddRack(rackForDb);
+            
+            // 새로 생성된 랙에 품목 추가
+            if (createdRack && products.length > 0) {
+                const rackToUpdate = racksToUpdate[`${newRackData.line}-${newRackData.name}`];
+                if (rackToUpdate) {
+                    // 실제 생성된 랙 ID로 업데이트
+                    await storageUpdateRack(createdRack.id, { products: rackToUpdate.products });
+                }
+            }
         }
+        
         // 기존 랙 업데이트
         for (const rackId in racksToUpdate) {
             const rackToSave = racksToUpdate[rackId];
             if (!rackId.startsWith('temp-')) {
-                await storageUpdateRack(rackId, { line: rackToSave.line, name: rackToSave.name, capacity: rackToSave.capacity });
-                await storageUpdateRack(rackId, { products: rackToSave.products });
+                await storageUpdateRack(rackId, { 
+                    line: rackToSave.line, 
+                    name: rackToSave.name, 
+                    capacity: rackToSave.capacity,
+                    products: rackToSave.products 
+                });
             }
         }
         addToast({ title: "엑셀 데이터 처리 완료", description: `${successCount}개의 품목이 처리되었습니다.` });

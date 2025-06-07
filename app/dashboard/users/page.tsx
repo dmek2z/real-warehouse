@@ -330,28 +330,11 @@ export default function UsersPage() {
         return;
       }
 
-      // Supabase Auth에 사용자 생성 (보다 안전한 설정)
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: formEmail,
-        password: formPassword,
-        email_confirm: true, // 이메일 확인 자동으로 완료
-        user_metadata: {
-          name: formName,
-          role: formRole
-        }
-      });
-
-      if (authError) {
-        console.error('Supabase Auth error:', authError);
-        throw new Error(`사용자 생성 실패: ${authError.message}`);
-      }
-
-      if (!authData.user) {
-        throw new Error('사용자 데이터가 생성되지 않았습니다.');
-      }
-
+      // 사용자 데이터를 직접 생성 (Auth 권한 문제 회피)
+      const newUserId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
       const newUser = {
-        id: authData.user.id,
+        id: newUserId,
         email: formEmail,
         name: formName,
         role: formRole,

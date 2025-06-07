@@ -77,7 +77,7 @@ interface StorageContextType {
 
   racks: Rack[]
   addRack: (rack: Omit<Rack, 'id' | 'products'>) => Promise<Rack | undefined> // products는 DB에 직접 저장 안 함
-  updateRack: (id: string, updates: Partial<Omit<Rack, 'products'>>) => Promise<void> // products는 별도 관리
+  updateRack: (id: string, updates: Partial<Omit<Rack, 'products'>> | Partial<Rack>) => Promise<void> // products는 별도 관리
   deleteRack: (id: string) => Promise<void>
 
   productCodes: ProductCode[]
@@ -453,9 +453,22 @@ export function StorageProvider({ children }: StorageProviderProps) {
     }
   };
 
-  const updateRackInStorage = async (id: string, updates: Partial<Omit<Rack, 'products'>>) => {
+  const updateRackInStorage = async (id: string, updates: Partial<Omit<Rack, 'products'>> | Partial<Rack>) => {
     try {
-      await apiUpdateRack(id, updates);
+      // products가 포함된 경우와 아닌 경우를 구분
+      const { products, ...dbUpdates } = updates as any;
+      
+      if (Object.keys(dbUpdates).length > 0) {
+        await apiUpdateRack(id, dbUpdates);
+      }
+      
+      // products가 있으면 로컬 상태만 업데이트 (DB에는 products 저장 안 함)
+      if (products !== undefined) {
+        setRacks(prev => prev.map(rack =>
+          rack.id === id ? { ...rack, products } : rack
+        ));
+      }
+      
       // debouncedRefreshData();
     } catch (dbError: any) {
       // DB 실패 시 로컬 fallback
