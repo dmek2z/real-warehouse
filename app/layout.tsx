@@ -4,6 +4,7 @@ import { Inter } from "next/font/google"
 import "./globals.css" //
 import { ThemeProvider } from "@/components/theme-provider" //
 import { AuthProvider } from "@/contexts/auth-context" //
+import { Toaster } from "sonner"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -28,6 +29,7 @@ export default function RootLayout({
         >
           <AuthProvider> {/* AuthProvider가 ThemeProvider 내부에 위치 */}
             {children}
+            <Toaster position="top-right" richColors closeButton />
           </AuthProvider>
         </ThemeProvider>
       </body>

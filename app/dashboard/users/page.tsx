@@ -319,9 +319,12 @@ export default function UsersPage() {
     if (!validateForm() || !hasPermission("users", "edit")) return
 
     try {
+      console.log("사용자 생성 시작:", { email: formEmail, name: formName, role: formRole });
+      
       // 앱 내 이메일 중복 체크
       const appUserExists = users.some((user) => user.email === formEmail);
       if (appUserExists) {
+        console.warn("Email already exists in app:", formEmail);
         addToast({
           title: "이메일 중복",
           description: "이미 등록된 이메일입니다.",
@@ -333,10 +336,13 @@ export default function UsersPage() {
       // Supabase Auth에 사용자 생성 (서비스 롤 키 사용)
       let newUser;
       try {
+        console.log('Creating user with Auth API:', { email: formEmail, name: formName, role: formRole });
+        
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email: formEmail,
           password: formPassword,
           email_confirm: true,
+          phone_confirm: false,
           user_metadata: {
             name: formName,
             role: formRole
@@ -352,6 +358,8 @@ export default function UsersPage() {
           throw new Error('사용자 데이터가 생성되지 않았습니다.');
         }
 
+        console.log('Auth user created successfully:', authData.user.id);
+        
         newUser = {
           id: authData.user.id,
           email: formEmail,
@@ -360,9 +368,18 @@ export default function UsersPage() {
           status: "active" as const,
           permissions: formPermissions,
         }
+        
+        addToast({
+          title: "✅ 사용자 생성 성공",
+          description: `${formName} 계정이 생성되었습니다. 이제 로그인할 수 있습니다.`,
+        })
       } catch (authError: any) {
         // Auth API 실패 시 fallback으로 로컬 생성
-        console.warn('Auth API failed, creating local user:', authError.message);
+        console.error('Auth API failed:', {
+          message: authError.message,
+          code: authError.code,
+          details: authError
+        });
         const newUserId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
         newUser = {

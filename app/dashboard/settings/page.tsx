@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { supabase } from "@/lib/supabaseClient"
+import { supabase, supabaseAdmin } from "@/lib/supabaseClient"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -102,44 +102,70 @@ export default function SettingsPage() {
     }
 
     setIsLoading(true)
+    console.log("비밀번호 변경 시작:", user.email)
+    
     try {
-      // 현재 비밀번호 확인
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      // 1단계: 현재 비밀번호 확인
+      console.log("현재 비밀번호 확인 중...");
+      const { data: verifyData, error: verifyError } = await supabase.auth.signInWithPassword({
         email: user.email,
         password: currentPassword
       })
 
-      if (signInError) {
+      if (verifyError) {
+        console.error("현재 비밀번호 확인 실패:", verifyError.message)
         toast.error("현재 비밀번호가 올바르지 않습니다.")
-        setIsLoading(false)
         return
       }
 
-      // 새 비밀번호로 업데이트
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword
+      console.log("현재 비밀번호 확인 성공");
+
+      // 2단계: Admin API로 새 비밀번호 설정 (더 확실한 방법)
+      console.log("Admin API로 비밀번호 변경 중...");
+      const { data: adminUpdateData, error: adminUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+        user.id,
+        { password: newPassword }
+      )
+
+      if (adminUpdateError) {
+        console.error("Admin 비밀번호 변경 오류:", adminUpdateError)
+        
+        // Admin 실패 시 일반 updateUser로 시도
+        console.log("일반 updateUser로 재시도...");
+        const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+          password: newPassword
+        })
+        
+        if (updateError) {
+          console.error("일반 비밀번호 변경도 실패:", updateError)
+          toast.error(`비밀번호 변경에 실패했습니다: ${updateError.message}`)
+          return
+        }
+        
+        console.log("일반 updateUser로 비밀번호 변경 성공:", updateData)
+      } else {
+        console.log("Admin API로 비밀번호 변경 성공:", adminUpdateData)
+      }
+      
+      toast.success("✅ 비밀번호가 성공적으로 변경되었습니다!", {
+        description: "새 비밀번호는 즉시 적용됩니다.",
+        duration: 5000
       })
-
-      if (updateError) {
-        console.error("비밀번호 변경 오류:", updateError)
-        toast.error("비밀번호 변경에 실패했습니다.")
-        return
-      }
-
-      toast.success("비밀번호가 성공적으로 변경되었습니다. 새 비밀번호는 즉시 적용됩니다.")
+      
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
       
-      // 5초 후 자동으로 재로그인 권장 알림
+      // 3초 후 재로그인 권장 알림
       setTimeout(() => {
-        toast.info("보안을 위해 로그아웃 후 새 비밀번호로 다시 로그인하는 것을 권장합니다.", {
-          duration: 8000
+        toast.info("🔐 보안을 위해 로그아웃 후 새 비밀번호로 다시 로그인하는 것을 권장합니다.", {
+          duration: 10000
         })
-      }, 2000)
-    } catch (error) {
-      console.error("비밀번호 변경 중 오류:", error)
-      toast.error("비밀번호 변경 중 오류가 발생했습니다.")
+      }, 3000)
+      
+    } catch (error: any) {
+      console.error("비밀번호 변경 중 예외:", error)
+      toast.error(`비밀번호 변경 중 오류가 발생했습니다: ${error.message || error}`)
     } finally {
       setIsLoading(false)
     }
