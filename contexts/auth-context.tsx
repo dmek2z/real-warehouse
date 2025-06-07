@@ -217,8 +217,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // 로그인 성공 시 대시보드로 리다이렉트
           if (event === 'SIGNED_IN' && session?.user) {
             console.log('AuthProvider: SIGNED_IN - redirecting to dashboard');
+            setIsLoading(false); // 여기서 확실히 로딩 해제
             if (pathname === '/login') {
-              router.push('/dashboard');
+              setTimeout(() => {
+                router.push('/dashboard');
+              }, 100);
             }
           }
         } catch (error) {
