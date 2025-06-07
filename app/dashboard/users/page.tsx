@@ -333,36 +333,102 @@ export default function UsersPage() {
         return;
       }
 
-      // 사용자 생성: 단순하고 확실한 방식
+      // Service Role을 사용한 Admin API 호출
       let newUser: any = null;
-      let creationMethod = "";
       
       try {
-        console.log('사용자 생성 시작:', { email: formEmail, name: formName, role: formRole });
+        console.log('Admin API로 사용자 생성 시작:', { email: formEmail, name: formName, role: formRole });
         
-        // 일반 회원가입 API 사용 (가장 안정적)
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: formEmail,
-          password: formPassword,
-          options: {
-            data: {
-              name: formName,
-              role: formRole
-            }
-          }
+        // API Route를 통해 Admin API 호출
+        const response = await fetch('/api/admin/create-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formEmail,
+            password: formPassword,
+            name: formName,
+            role: formRole,
+            permissions: formPermissions
+          })
         });
-        
-        if (signUpError) {
-          console.warn('일반 회원가입 API 실패:', signUpError.message);
-          throw new Error(`회원가입 실패: ${signUpError.message}`);
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || '사용자 생성 실패');
         }
-        
-        if (signUpData.user) {
-          console.log('✅ 회원가입 API로 사용자 생성 성공:', signUpData.user.id);
-          creationMethod = "auth_signup";
+
+        if (result.success && result.user) {
+          console.log('✅ Admin API로 사용자 생성 성공:', result.user.id);
           
           newUser = {
-            id: signUpData.user.id,
+            id: result.user.id,
+            email: result.user.email,
+            name: result.user.name,
+            role: result.user.role,
+            status: "active" as const,
+            permissions: result.user.permissions,
+          }
+          
+          addToast({
+            title: "✅ 사용자 생성 성공",
+            description: `${formName} 계정이 Admin API로 생성되었습니다. 지금 바로 로그인할 수 있습니다!`,
+          })
+        } else {
+          throw new Error('사용자 데이터가 반환되지 않았습니다.');
+        }
+        
+      } catch (adminError: any) {
+        console.error('Admin API 실패, fallback 시도:', adminError.message);
+        
+        // Admin API 실패 시 일반 signUp으로 fallback
+        try {
+          console.log('Fallback: 일반 signUp API 시도');
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: formEmail,
+            password: formPassword,
+            options: {
+              data: {
+                name: formName,
+                role: formRole
+              }
+            }
+          });
+          
+          if (signUpError) {
+            throw new Error(`Fallback 실패: ${signUpError.message}`);
+          }
+          
+          if (signUpData.user) {
+            console.log('✅ Fallback으로 사용자 생성 성공:', signUpData.user.id);
+            
+            newUser = {
+              id: signUpData.user.id,
+              email: formEmail,
+              name: formName,
+              role: formRole,
+              status: "active" as const,
+              permissions: formPermissions,
+            }
+            
+            // 즉시 로그아웃 (관리자 세션 유지)
+            await supabase.auth.signOut();
+            
+            addToast({
+              title: "✅ 사용자 생성 성공",
+              description: `${formName} 계정이 생성되었습니다 (Fallback 방식).`,
+            })
+          }
+        } catch (fallbackError: any) {
+          console.error('모든 방식 실패:', fallbackError.message);
+          
+          // 최후 로컬 생성
+          const newUserId = `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          
+          newUser = {
+            id: newUserId,
             email: formEmail,
             name: formName,
             role: formRole,
@@ -370,42 +436,13 @@ export default function UsersPage() {
             permissions: formPermissions,
           }
           
-          // 즉시 로그아웃 (관리자용이므로)
-          await supabase.auth.signOut();
-          console.log("관리자 세션에서 로그아웃 완료");
-          
           addToast({
-            title: "✅ 사용자 생성 성공",
-            description: `${formName} 계정이 생성되었습니다. 지금 바로 로그인할 수 있습니다!`,
+            title: "⚠️ 제한된 계정 생성",
+            description: "로컬 전용 계정이 생성되었습니다. 로그인 기능은 제한됩니다.",
+            variant: "destructive",
           })
-        } else {
-          throw new Error('사용자 데이터가 생성되지 않았습니다.');
         }
-        
-      } catch (authError: any) {
-        console.error('Auth API 완전 실패:', authError.message);
-        creationMethod = "local_only";
-        
-        // Auth 실패 시 로컬 전용 계정 생성
-        const newUserId = `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
-        newUser = {
-          id: newUserId,
-          email: formEmail,
-          name: formName,
-          role: formRole,
-          status: "active" as const,
-          permissions: formPermissions,
-        }
-        
-        addToast({
-          title: "⚠️ 제한된 계정 생성",
-          description: "로컬 전용 계정이 생성되었습니다. 로그인 기능은 제한됩니다.",
-          variant: "destructive",
-        })
       }
-      
-      console.log(`사용자 생성 완료 - 방식: ${creationMethod}, ID: ${newUser?.id}`)
       
       // newUser가 성공적으로 생성된 경우에만 추가
       if (newUser) {

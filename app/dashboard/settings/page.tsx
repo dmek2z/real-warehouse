@@ -49,50 +49,96 @@ export default function SettingsPage() {
     }
 
     setIsLoading(true)
-    console.log("이름 변경 시작:", newName.trim())
+    console.log("Admin API로 이름 변경 시작:", newName.trim())
     
     try {
-      // Supabase Auth 메타데이터만 업데이트 (DB 테이블 접근 안 함)
-      const { data: authData, error: authError } = await supabase.auth.updateUser({
-        data: { 
-          name: newName.trim(),
-          display_name: newName.trim() // 추가 안전장치
-        }
-      })
+      // API Route를 통해 Admin API 호출
+      const response = await fetch('/api/admin/update-user-name', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          name: newName.trim()
+        })
+      });
 
-      if (authError) {
-        console.error("Auth 메타데이터 업데이트 오류:", authError)
-        toast.error(`이름 변경에 실패했습니다: ${authError.message}`)
-        return
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || '이름 변경 실패');
       }
 
-      console.log("Auth 메타데이터 업데이트 성공:", authData)
+      if (result.success) {
+        console.log("✅ Admin API로 이름 변경 성공");
+        
+        // 로컬 스토리지의 사용자 정보도 즉시 업데이트
+        try {
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            const userObj = JSON.parse(storedUser);
+            userObj.name = newName.trim();
+            localStorage.setItem('user', JSON.stringify(userObj));
+            console.log("로컬 스토리지 사용자 이름 업데이트:", userObj);
+          }
+        } catch (error) {
+          console.warn("로컬 스토리지 업데이트 실패:", error);
+        }
+        
+        toast.success("✅ 이름이 성공적으로 변경되었습니다!")
+        setIsNameEditing(false)
+        
+        // 1초 후 페이지 새로고침하여 변경사항 완전 반영
+        setTimeout(() => {
+          console.log("페이지 새로고침으로 이름 변경 반영");
+          window.location.reload()
+        }, 1000)
+      } else {
+        throw new Error('이름 변경 응답이 올바르지 않습니다.');
+      }
       
-      // 로컬 스토리지의 사용자 정보도 즉시 업데이트
+    } catch (adminError: any) {
+      console.error("Admin API 실패, fallback 시도:", adminError.message);
+      
+      // Admin API 실패 시 일반 Auth API로 fallback
       try {
-        const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          const userObj = JSON.parse(storedUser);
-          userObj.name = newName.trim();
-          localStorage.setItem('user', JSON.stringify(userObj));
-          console.log("로컬 스토리지 사용자 이름 업데이트:", userObj);
+        const { data: authData, error: authError } = await supabase.auth.updateUser({
+          data: { 
+            name: newName.trim(),
+            display_name: newName.trim()
+          }
+        })
+
+        if (authError) {
+          throw new Error(`Fallback 실패: ${authError.message}`);
         }
-      } catch (error) {
-        console.warn("로컬 스토리지 업데이트 실패:", error);
+
+        console.log("✅ Fallback으로 이름 변경 성공:", authData);
+        
+        // 로컬 스토리지 업데이트
+        try {
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            const userObj = JSON.parse(storedUser);
+            userObj.name = newName.trim();
+            localStorage.setItem('user', JSON.stringify(userObj));
+          }
+        } catch (error) {
+          console.warn("로컬 스토리지 업데이트 실패:", error);
+        }
+        
+        toast.success("✅ 이름이 변경되었습니다 (Fallback 방식)!")
+        setIsNameEditing(false)
+        
+        setTimeout(() => {
+          window.location.reload()
+        }, 1000)
+        
+      } catch (fallbackError: any) {
+        console.error("모든 방식 실패:", fallbackError);
+        toast.error(`이름 변경에 실패했습니다: ${fallbackError.message || fallbackError}`)
       }
-      
-      toast.success("✅ 이름이 성공적으로 변경되었습니다!")
-      setIsNameEditing(false)
-      
-      // 1초 후 페이지 새로고침하여 변경사항 완전 반영
-      setTimeout(() => {
-        console.log("페이지 새로고침으로 이름 변경 반영");
-        window.location.reload()
-      }, 1000)
-      
-    } catch (error: any) {
-      console.error("이름 변경 중 오류:", error)
-      toast.error(`이름 변경 중 오류가 발생했습니다: ${error.message || error}`)
     } finally {
       setIsLoading(false)
     }
@@ -134,27 +180,66 @@ export default function SettingsPage() {
 
       console.log("현재 비밀번호 확인 성공");
 
-      // 2단계: 일반 updateUser로 새 비밀번호 설정
-      console.log("비밀번호 변경 중...");
-      const { data: updateData, error: updateError } = await supabase.auth.updateUser({
-        password: newPassword
-      })
+      // 2단계: Admin API로 비밀번호 변경
+      console.log("Admin API로 비밀번호 변경 중...");
       
-      if (updateError) {
-        console.error("비밀번호 변경 실패:", updateError)
-        toast.error(`비밀번호 변경에 실패했습니다: ${updateError.message}`)
-        return
+      try {
+        // API Route를 통해 Admin API 호출
+        const response = await fetch('/api/admin/update-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: user.id,
+            newPassword: newPassword
+          })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Admin API 비밀번호 변경 실패');
+        }
+
+        if (result.success) {
+          console.log("✅ Admin API로 비밀번호 변경 성공");
+          
+          // 즉시 토스트 표시
+          toast.success("✅ 비밀번호가 성공적으로 변경되었습니다!", {
+            description: "Admin API로 새 비밀번호가 즉시 적용되었습니다.",
+            duration: 5000
+          })
+          
+          console.log("토스트 메시지 표시됨: Admin API 비밀번호 변경 성공")
+        } else {
+          throw new Error('비밀번호 변경 응답이 올바르지 않습니다.');
+        }
+        
+      } catch (adminError: any) {
+        console.error("Admin API 실패, fallback 시도:", adminError.message);
+        
+        // Admin API 실패 시 일반 updateUser로 fallback
+        const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+          password: newPassword
+        })
+        
+        if (updateError) {
+          console.error("Fallback 비밀번호 변경도 실패:", updateError)
+          toast.error(`비밀번호 변경에 실패했습니다: ${updateError.message}`)
+          return
+        }
+        
+        console.log("✅ Fallback으로 비밀번호 변경 성공:", updateData)
+        
+        // 즉시 토스트 표시
+        toast.success("✅ 비밀번호가 변경되었습니다!", {
+          description: "Fallback 방식으로 새 비밀번호가 적용되었습니다.",
+          duration: 5000
+        })
+        
+        console.log("토스트 메시지 표시됨: Fallback 비밀번호 변경 성공")
       }
-      
-      console.log("비밀번호 변경 성공:", updateData)
-      
-      // 즉시 토스트 표시
-      toast.success("✅ 비밀번호가 성공적으로 변경되었습니다!", {
-        description: "새 비밀번호는 즉시 적용됩니다.",
-        duration: 5000
-      })
-      
-      console.log("토스트 메시지 표시됨: 비밀번호 변경 성공")
       
       setCurrentPassword("")
       setNewPassword("")
