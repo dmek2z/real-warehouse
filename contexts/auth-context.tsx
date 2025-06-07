@@ -365,16 +365,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.warn("AuthProvider: localStorage clear failed:", storageError);
       }
       
-      // 3단계: Supabase 로그아웃
+      // 3단계: Supabase 로그아웃 (3초 타임아웃)
       try {
-        const { error } = await supabase.auth.signOut();
+        console.log("AuthProvider: Starting Supabase signOut");
+        const signOutPromise = supabase.auth.signOut();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Logout timeout')), 3000)
+        );
+        
+        const { error } = await Promise.race([signOutPromise, timeoutPromise]) as any;
         if (error) {
           console.error("AuthProvider: Supabase signOut error:", error.message);
         } else {
           console.log("AuthProvider: Supabase signOut successful");
         }
-      } catch (supabaseError) {
-        console.error("AuthProvider: Supabase signOut failed:", supabaseError);
+      } catch (supabaseError: any) {
+        if (supabaseError.message === 'Logout timeout') {
+          console.warn("AuthProvider: Supabase signOut timeout, proceeding anyway");
+        } else {
+          console.error("AuthProvider: Supabase signOut failed:", supabaseError);
+        }
       }
       
       // 4단계: 강제 리다이렉트 (지연 없이)

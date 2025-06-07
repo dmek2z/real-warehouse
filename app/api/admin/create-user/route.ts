@@ -25,18 +25,59 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // 먼저 기존 사용자 확인
-    const { data: existingUsers, error: checkError } = await supabaseAdmin.auth.admin.listUsers();
+    // 기존 사용자 확인 (더 정확한 중복 체크)
+    console.log('🔍 기존 사용자 확인 중:', email);
     
-    if (!checkError && existingUsers) {
-      const existingUser = existingUsers.users.find(u => u.email === email);
-      if (existingUser) {
-        console.log('사용자 이미 존재:', email);
-        return NextResponse.json(
-          { error: `이미 등록된 이메일입니다: ${email}` },
-          { status: 409 } // Conflict
-        );
+    try {
+      // 페이지별로 사용자 확인 (최대 1000명씩)
+      let page = 1;
+      let foundUser = null;
+      
+      while (page <= 5 && !foundUser) { // 최대 5000명까지 확인
+        const { data: existingUsers, error: checkError } = await supabaseAdmin.auth.admin.listUsers({
+          page,
+          perPage: 1000
+        });
+        
+        if (checkError) {
+          console.warn('사용자 목록 조회 실패:', checkError.message);
+          break;
+        }
+        
+        if (existingUsers?.users) {
+          foundUser = existingUsers.users.find((u: any) => u.email === email);
+          
+          if (foundUser) {
+            console.log('❌ 기존 사용자 발견:', {
+              email: foundUser.email,
+              id: foundUser.id,
+              created_at: foundUser.created_at
+            });
+            
+            return NextResponse.json(
+              { 
+                error: `이미 등록된 이메일입니다: ${email}`,
+                details: `기존 사용자 ID: ${foundUser.id}`,
+                userExists: true
+              },
+              { status: 409 }
+            );
+          }
+          
+          // 더 이상 사용자가 없으면 중단
+          if (existingUsers.users.length < 1000) break;
+        } else {
+          break;
+        }
+        
+        page++;
       }
+      
+      console.log('✅ 기존 사용자 없음, 생성 진행:', email);
+      
+    } catch (listError: any) {
+      console.warn('사용자 목록 조회 중 오류:', listError.message);
+      // 목록 조회 실패해도 생성은 시도
     }
 
     // Admin API로 사용자 생성
