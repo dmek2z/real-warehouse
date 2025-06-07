@@ -67,13 +67,28 @@ export default function SettingsPage() {
       }
 
       console.log("Auth 메타데이터 업데이트 성공:", authData)
+      
+      // 로컬 스토리지의 사용자 정보도 즉시 업데이트
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const userObj = JSON.parse(storedUser);
+          userObj.name = newName.trim();
+          localStorage.setItem('user', JSON.stringify(userObj));
+          console.log("로컬 스토리지 사용자 이름 업데이트:", userObj);
+        }
+      } catch (error) {
+        console.warn("로컬 스토리지 업데이트 실패:", error);
+      }
+      
       toast.success("✅ 이름이 성공적으로 변경되었습니다!")
       setIsNameEditing(false)
       
-      // 3초 후 페이지 새로고침하여 변경사항 반영
+      // 1초 후 페이지 새로고침하여 변경사항 완전 반영
       setTimeout(() => {
+        console.log("페이지 새로고침으로 이름 변경 반영");
         window.location.reload()
-      }, 1500)
+      }, 1000)
       
     } catch (error: any) {
       console.error("이름 변경 중 오류:", error)
@@ -133,10 +148,13 @@ export default function SettingsPage() {
       
       console.log("비밀번호 변경 성공:", updateData)
       
+      // 즉시 토스트 표시
       toast.success("✅ 비밀번호가 성공적으로 변경되었습니다!", {
         description: "새 비밀번호는 즉시 적용됩니다.",
         duration: 5000
       })
+      
+      console.log("토스트 메시지 표시됨: 비밀번호 변경 성공")
       
       setCurrentPassword("")
       setNewPassword("")
