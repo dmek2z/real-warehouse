@@ -165,15 +165,25 @@ export default function SettingsPage() {
     console.log("비밀번호 변경 시작:", user.email)
     
     try {
-      // 1단계: 현재 비밀번호 확인
+      // 1단계: 현재 비밀번호 확인 (별도 클라이언트로)
       console.log("현재 비밀번호 확인 중...");
-      const { data: verifyData, error: verifyError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPassword
-      })
+      
+      // 비밀번호 확인용 API Route 사용 (더 안전한 방법)
+      const verifyResponse = await fetch('/api/auth/verify-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: user.email,
+          password: currentPassword
+        })
+      });
 
-      if (verifyError) {
-        console.error("현재 비밀번호 확인 실패:", verifyError.message)
+      const verifyResult = await verifyResponse.json();
+
+      if (!verifyResponse.ok) {
+        console.error("현재 비밀번호 확인 실패:", verifyResult.error)
         toast.error("현재 비밀번호가 올바르지 않습니다.")
         return
       }

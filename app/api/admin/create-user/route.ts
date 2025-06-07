@@ -25,6 +25,20 @@ export async function POST(request: NextRequest) {
       }
     );
 
+    // 먼저 기존 사용자 확인
+    const { data: existingUsers, error: checkError } = await supabaseAdmin.auth.admin.listUsers();
+    
+    if (!checkError && existingUsers) {
+      const existingUser = existingUsers.users.find(u => u.email === email);
+      if (existingUser) {
+        console.log('사용자 이미 존재:', email);
+        return NextResponse.json(
+          { error: `이미 등록된 이메일입니다: ${email}` },
+          { status: 409 } // Conflict
+        );
+      }
+    }
+
     // Admin API로 사용자 생성
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -38,6 +52,17 @@ export async function POST(request: NextRequest) {
 
     if (authError) {
       console.error('Admin API error:', authError);
+      
+      // 중복 이메일 에러 특별 처리
+      if (authError.message.includes('already been registered') || 
+          authError.message.includes('email address is invalid') ||
+          authError.message.includes('User already registered')) {
+        return NextResponse.json(
+          { error: `이미 등록된 이메일입니다: ${email}` },
+          { status: 409 }
+        );
+      }
+      
       return NextResponse.json(
         { error: `사용자 생성 실패: ${authError.message}` },
         { status: 400 }

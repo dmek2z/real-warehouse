@@ -357,6 +357,15 @@ export default function UsersPage() {
         const result = await response.json();
 
         if (!response.ok) {
+          // 중복 이메일 에러 특별 처리
+          if (response.status === 409) {
+            addToast({
+              title: "❌ 중복 이메일",
+              description: result.error || "이미 등록된 이메일입니다.",
+              variant: "destructive",
+            })
+            return;
+          }
           throw new Error(result.error || '사용자 생성 실패');
         }
 
@@ -398,6 +407,17 @@ export default function UsersPage() {
           });
           
           if (signUpError) {
+            // 중복 이메일 에러 특별 처리
+            if (signUpError.message.includes('already been registered') || 
+                signUpError.message.includes('email address is invalid') ||
+                signUpError.message.includes('User already registered')) {
+              addToast({
+                title: "❌ 중복 이메일",
+                description: `이미 등록된 이메일입니다: ${formEmail}`,
+                variant: "destructive",
+              })
+              return;
+            }
             throw new Error(`Fallback 실패: ${signUpError.message}`);
           }
           
@@ -424,6 +444,13 @@ export default function UsersPage() {
         } catch (fallbackError: any) {
           console.error('모든 방식 실패:', fallbackError.message);
           
+          // 중복 이메일이면 로컬 생성도 하지 않음
+          if (fallbackError.message.includes('중복 이메일') || 
+              fallbackError.message.includes('already been registered')) {
+            console.log('중복 이메일로 인한 실패, 로컬 생성 안 함');
+            return;
+          }
+          
           // 최후 로컬 생성
           const newUserId = `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           
@@ -448,26 +475,27 @@ export default function UsersPage() {
       if (newUser) {
         await addUser(newUser)
         addToast({
-          title: "사용자 추가 완료",
-          description: `${newUser.name} 사용자가 추가되었습니다.`,
+          title: "✅ 사용자 추가 완료",
+          description: `${newUser.name} 사용자가 시스템에 추가되었습니다.`,
         })
         resetForm()
         setAddDialogOpen(false)
-      } else {
+      }
+          } catch (error: any) {
+        console.error('Error adding user:', error)
+        
+        // 중복 이메일 에러는 이미 처리됨
+        if (error.message?.includes('중복 이메일') || 
+            error.message?.includes('already been registered')) {
+          return;
+        }
+        
         addToast({
-          title: "사용자 생성 실패",
-          description: "사용자 생성 중 알 수 없는 오류가 발생했습니다.",
+          title: "❌ 사용자 추가 실패",
+          description: error.message || "사용자를 추가하는 중 예상치 못한 오류가 발생했습니다.",
           variant: "destructive",
         })
       }
-    } catch (error: any) {
-      console.error('Error adding user:', error)
-      addToast({
-        title: "사용자 추가 실패",
-        description: error.message || "사용자를 추가하는 중 오류가 발생했습니다.",
-        variant: "destructive",
-      })
-    }
   }
 
   // 사용자 수정
