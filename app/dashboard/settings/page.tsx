@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { supabase, supabaseAdmin } from "@/lib/supabaseClient"
+import { supabase } from "@/lib/supabaseClient"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,36 +49,35 @@ export default function SettingsPage() {
     }
 
     setIsLoading(true)
+    console.log("이름 변경 시작:", newName.trim())
+    
     try {
-      // users 테이블 업데이트
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ name: newName.trim() })
-        .eq('id', user.id)
-
-      if (updateError) {
-        console.error("이름 변경 오류:", updateError)
-        toast.error("이름 변경에 실패했습니다.")
-        return
-      }
-
-      // Supabase Auth 메타데이터 업데이트
-      const { error: authError } = await supabase.auth.updateUser({
-        data: { name: newName.trim() }
+      // Supabase Auth 메타데이터만 업데이트 (DB 테이블 접근 안 함)
+      const { data: authData, error: authError } = await supabase.auth.updateUser({
+        data: { 
+          name: newName.trim(),
+          display_name: newName.trim() // 추가 안전장치
+        }
       })
 
       if (authError) {
         console.error("Auth 메타데이터 업데이트 오류:", authError)
+        toast.error(`이름 변경에 실패했습니다: ${authError.message}`)
+        return
       }
 
-      toast.success("이름이 성공적으로 변경되었습니다.")
+      console.log("Auth 메타데이터 업데이트 성공:", authData)
+      toast.success("✅ 이름이 성공적으로 변경되었습니다!")
       setIsNameEditing(false)
       
-      // 페이지 새로고침하여 변경사항 반영
-      window.location.reload()
-    } catch (error) {
+      // 3초 후 페이지 새로고침하여 변경사항 반영
+      setTimeout(() => {
+        window.location.reload()
+      }, 1500)
+      
+    } catch (error: any) {
       console.error("이름 변경 중 오류:", error)
-      toast.error("이름 변경 중 오류가 발생했습니다.")
+      toast.error(`이름 변경 중 오류가 발생했습니다: ${error.message || error}`)
     } finally {
       setIsLoading(false)
     }
@@ -120,32 +119,19 @@ export default function SettingsPage() {
 
       console.log("현재 비밀번호 확인 성공");
 
-      // 2단계: Admin API로 새 비밀번호 설정 (더 확실한 방법)
-      console.log("Admin API로 비밀번호 변경 중...");
-      const { data: adminUpdateData, error: adminUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
-        user.id,
-        { password: newPassword }
-      )
-
-      if (adminUpdateError) {
-        console.error("Admin 비밀번호 변경 오류:", adminUpdateError)
-        
-        // Admin 실패 시 일반 updateUser로 시도
-        console.log("일반 updateUser로 재시도...");
-        const { data: updateData, error: updateError } = await supabase.auth.updateUser({
-          password: newPassword
-        })
-        
-        if (updateError) {
-          console.error("일반 비밀번호 변경도 실패:", updateError)
-          toast.error(`비밀번호 변경에 실패했습니다: ${updateError.message}`)
-          return
-        }
-        
-        console.log("일반 updateUser로 비밀번호 변경 성공:", updateData)
-      } else {
-        console.log("Admin API로 비밀번호 변경 성공:", adminUpdateData)
+      // 2단계: 일반 updateUser로 새 비밀번호 설정
+      console.log("비밀번호 변경 중...");
+      const { data: updateData, error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+      
+      if (updateError) {
+        console.error("비밀번호 변경 실패:", updateError)
+        toast.error(`비밀번호 변경에 실패했습니다: ${updateError.message}`)
+        return
       }
+      
+      console.log("비밀번호 변경 성공:", updateData)
       
       toast.success("✅ 비밀번호가 성공적으로 변경되었습니다!", {
         description: "새 비밀번호는 즉시 적용됩니다.",

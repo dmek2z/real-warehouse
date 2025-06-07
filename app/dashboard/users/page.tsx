@@ -24,7 +24,7 @@ import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/components/ui/use-toast"
 import { useStorage } from "@/contexts/storage-context"
 import { useAuth } from "@/contexts/auth-context"
-import { supabaseAdmin } from "@/lib/supabaseClient"
+import { supabase, supabaseAdmin } from "@/lib/supabaseClient"
 
 // Types
 interface Permission {
@@ -333,10 +333,13 @@ export default function UsersPage() {
         return;
       }
 
-      // Supabase Auth에 사용자 생성 (서비스 롤 키 사용)
-      let newUser;
+      // 사용자 생성: 다단계 접근 방식
+      let newUser: any = null;
+      let authCreationSuccess = false;
+      
+      // 1단계: Admin API 시도
       try {
-        console.log('Creating user with Auth API:', { email: formEmail, name: formName, role: formRole });
+        console.log('1단계: Admin API로 사용자 생성 시도:', { email: formEmail, name: formName, role: formRole });
         
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
           email: formEmail,
@@ -350,37 +353,69 @@ export default function UsersPage() {
         });
 
         if (authError) {
-          console.error('Supabase Auth error:', authError);
-          throw new Error(`사용자 생성 실패: ${authError.message}`);
+          console.warn('Admin API 실패:', authError.message);
+          throw new Error(`Admin API 실패: ${authError.message}`);
         }
 
-        if (!authData.user) {
-          throw new Error('사용자 데이터가 생성되지 않았습니다.');
+        if (authData.user) {
+          console.log('✅ Admin API로 사용자 생성 성공:', authData.user.id);
+          authCreationSuccess = true;
+          
+          newUser = {
+            id: authData.user.id,
+            email: formEmail,
+            name: formName,
+            role: formRole,
+            status: "active" as const,
+            permissions: formPermissions,
+          }
         }
-
-        console.log('Auth user created successfully:', authData.user.id);
+      } catch (adminError: any) {
+        console.log('Admin API 실패, 일반 API 시도...');
         
-        newUser = {
-          id: authData.user.id,
-          email: formEmail,
-          name: formName,
-          role: formRole,
-          status: "active" as const,
-          permissions: formPermissions,
+        // 2단계: 일반 회원가입 API 시도 (임시)
+        try {
+          console.log('2단계: 일반 회원가입 API 시도');
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email: formEmail,
+            password: formPassword,
+            options: {
+              data: {
+                name: formName,
+                role: formRole
+              }
+            }
+          });
+          
+          if (signUpError) {
+            throw new Error(`일반 회원가입도 실패: ${signUpError.message}`);
+          }
+          
+          if (signUpData.user) {
+            console.log('✅ 일반 API로 사용자 생성 성공:', signUpData.user.id);
+            authCreationSuccess = true;
+            
+            newUser = {
+              id: signUpData.user.id,
+              email: formEmail,
+              name: formName,
+              role: formRole,
+              status: "active" as const,
+              permissions: formPermissions,
+            }
+            
+            // 바로 로그아웃 (관리자용 계정이므로)
+            await supabase.auth.signOut();
+          }
+        } catch (signUpError: any) {
+          console.error('일반 API도 실패:', signUpError.message);
         }
-        
-        addToast({
-          title: "✅ 사용자 생성 성공",
-          description: `${formName} 계정이 생성되었습니다. 이제 로그인할 수 있습니다.`,
-        })
-      } catch (authError: any) {
-        // Auth API 실패 시 fallback으로 로컬 생성
-        console.error('Auth API failed:', {
-          message: authError.message,
-          code: authError.code,
-          details: authError
-        });
-        const newUserId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      }
+      
+      // 3단계: 모든 Auth API 실패 시 로컬 전용 계정 생성
+      if (!authCreationSuccess) {
+        console.log('3단계: 로컬 전용 계정 생성');
+        const newUserId = `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         
         newUser = {
           id: newUserId,
@@ -392,19 +427,33 @@ export default function UsersPage() {
         }
         
         addToast({
-          title: "주의",
-          description: "사용자가 생성되었지만 로그인 기능은 제한됩니다.",
+          title: "⚠️ 제한된 계정 생성",
+          description: "로컬 전용 계정이 생성되었습니다. 로그인 기능은 제한됩니다.",
           variant: "destructive",
+        })
+      } else {
+        addToast({
+          title: "✅ 사용자 생성 성공",
+          description: `${formName} 계정이 생성되었습니다. 이제 로그인할 수 있습니다.`,
         })
       }
       
-      await addUser(newUser)
-      addToast({
-        title: "사용자 추가 완료",
-        description: `${newUser.name} 사용자가 추가되었습니다.`,
-      })
-      resetForm()
-      setAddDialogOpen(false)
+      // newUser가 성공적으로 생성된 경우에만 추가
+      if (newUser) {
+        await addUser(newUser)
+        addToast({
+          title: "사용자 추가 완료",
+          description: `${newUser.name} 사용자가 추가되었습니다.`,
+        })
+        resetForm()
+        setAddDialogOpen(false)
+      } else {
+        addToast({
+          title: "사용자 생성 실패",
+          description: "사용자 생성 중 알 수 없는 오류가 발생했습니다.",
+          variant: "destructive",
+        })
+      }
     } catch (error: any) {
       console.error('Error adding user:', error)
       addToast({
