@@ -25,6 +25,7 @@ interface AuthContextType {
   isInitialized: boolean
   login: (email: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
+  forceLogout: () => void
   hasPermission: (pageId: string, permissionType: "view" | "edit") => boolean
 }
 
@@ -337,51 +338,96 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
+    // 이미 로그아웃 중이면 중복 실행 방지
+    if (isLoading) {
+      console.log("AuthProvider: logout already in progress, skipping");
+      return;
+    }
+
     try {
       setIsLoading(true);
       console.log("AuthProvider: logout - Starting logout process");
       
-      // 로컬 스토리지 정리 먼저 수행
-      localStorage.removeItem('user');
-      localStorage.removeItem('user_role');
-      eraseCookie('currentUser');
-      
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error("AuthProvider: logout - Supabase signOut error:", error.message);
-      }
-      
-      // 무조건 로컬 상태 정리
+      // 1단계: 즉시 로컬 상태 정리
       setUser(null);
-      setIsLoading(false);
+      setIsInitialized(false);
       
-      console.log("AuthProvider: logout - Completed, redirecting to login");
-      if (pathname !== '/login') {
-        router.push('/login');
+      // 2단계: 로컬 스토리지 정리
+      try {
+        localStorage.removeItem('user');
+        localStorage.removeItem('user_role');
+        eraseCookie('currentUser');
+        console.log("AuthProvider: localStorage cleared");
+      } catch (storageError) {
+        console.warn("AuthProvider: localStorage clear failed:", storageError);
       }
+      
+      // 3단계: Supabase 로그아웃
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.error("AuthProvider: Supabase signOut error:", error.message);
+        } else {
+          console.log("AuthProvider: Supabase signOut successful");
+        }
+      } catch (supabaseError) {
+        console.error("AuthProvider: Supabase signOut failed:", supabaseError);
+      }
+      
+      // 4단계: 강제 리다이렉트 (지연 없이)
+      console.log("AuthProvider: logout completed, redirecting to login");
+      window.location.href = '/login'; // router.push 대신 강제 페이지 이동
       
     } catch (error: any) {
       console.error("AuthProvider: logout - Unexpected error:", error);
-      // 에러가 발생해도 로그아웃 상태로 만들기
-      localStorage.removeItem('user');
-      localStorage.removeItem('user_role');
-      eraseCookie('currentUser');
-      setUser(null);
-      setIsLoading(false);
       
-      if (pathname !== '/login') {
-        router.push('/login');
-      }
+      // 에러 발생 시에도 무조건 로그아웃 상태로 만들기
+      setUser(null);
+      setIsInitialized(false);
+      
+      try {
+        localStorage.removeItem('user');
+        localStorage.removeItem('user_role');
+        eraseCookie('currentUser');
+      } catch {}
+      
+      // 강제 리다이렉트
+      window.location.href = '/login';
+    } finally {
+      setIsLoading(false);
     }
-  }, [pathname, router]);
+  }, [isLoading]);
+
+  const forceLogout = useCallback(() => {
+    console.log("AuthProvider: forceLogout - Emergency logout");
+    
+    // 즉시 상태 정리
+    setUser(null);
+    setIsInitialized(false);
+    setIsLoading(false);
+    
+    // 로컬 스토리지 정리
+    try {
+      localStorage.clear(); // 모든 로컬 스토리지 정리
+      document.cookie.split(";").forEach(function(c) { 
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+      });
+    } catch (error) {
+      console.warn("forceLogout: cleanup failed", error);
+    }
+    
+    // 강제 페이지 이동
+    window.location.href = '/login';
+  }, []);
 
   const hasPermission = useCallback((pageId: string, permissionType: "view" | "edit"): boolean => {
+    // 로그아웃 중이면 권한 체크 안 함
+    if (isLoading && !user && !isInitialized) {
+      return false;
+    }
+    
     // 초기화 중이거나 로딩 중일 때는 기본적으로 권한 허용 (관리자로 가정)
-    if (!isInitialized || isLoading) {
-      // 로그 빈도 줄이기 - 설정 페이지는 로그 생략
-      if (pageId !== 'settings') {
-        console.log(`hasPermission: Not initialized yet, allowing ${pageId}:${permissionType}`);
-      }
+    if (!isInitialized) {
       return true;
     }
     
@@ -415,8 +461,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isInitialized,
     login,
     logout,
+    forceLogout,
     hasPermission,
-  }), [user, isLoading, isInitialized, login, logout, hasPermission]);
+  }), [user, isLoading, isInitialized, login, logout, forceLogout, hasPermission]);
 
   return (
     <AuthContext.Provider value={authContextValue}>

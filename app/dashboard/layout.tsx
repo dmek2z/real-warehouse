@@ -42,7 +42,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [quickInit, setQuickInit] = useState(false); // 빠른 초기화 상태
-  const { user, logout, isLoading: authIsLoading, isInitialized, hasPermission } = useAuth();
+  const { user, logout, forceLogout, isLoading: authIsLoading, isInitialized, hasPermission } = useAuth();
 
   // 새로고침 시 localStorage에서 빠르게 사용자 정보 로드
   useEffect(() => {
@@ -158,8 +158,16 @@ export default function DashboardLayout({
                         <Link href="/dashboard/settings">설정</Link>
                         </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem onClick={async () => {
-                        await logout();
+                    <DropdownMenuItem onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log("Logout button clicked");
+                        try {
+                          await logout();
+                        } catch (error) {
+                          console.error("Logout error, using forceLogout:", error);
+                          forceLogout();
+                        }
                     }}>로그아웃</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
