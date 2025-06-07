@@ -111,7 +111,16 @@ export async function GET(request: NextRequest) {
           data: '비밀번호 변경 성공'
         });
         
-        // 새 비밀번호로 로그인 테스트
+        // 새 비밀번호로 로그인 테스트  
+        if (!supabaseAnonKey) {
+          results.push({
+            step: '새 비밀번호로 로그인 테스트',
+            status: 'error',
+            error: 'ANON_KEY가 없습니다'
+          });
+          return NextResponse.json({ results }, { status: 500 });
+        }
+        
         const supabaseClient = createClient(supabaseUrl as string, supabaseAnonKey as string);
         
         const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({

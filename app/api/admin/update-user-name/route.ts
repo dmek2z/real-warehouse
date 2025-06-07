@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/supabaseClient';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,16 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Service Role을 사용한 Admin 클라이언트 생성
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    );
+    const supabaseAdmin = createAdminClient();
 
     // 1. Auth 메타데이터 업데이트
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.updateUserById(

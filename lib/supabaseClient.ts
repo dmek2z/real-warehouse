@@ -24,15 +24,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(`Missing required environment variables: ${!supabaseUrl ? 'NEXT_PUBLIC_SUPABASE_URL ' : ''}${!supabaseAnonKey ? 'NEXT_PUBLIC_SUPABASE_ANON_KEY' : ''}`);
 }
 
-// 싱글톤 인스턴스 생성
-let supabaseInstance: ReturnType<typeof createClient> | null = null;
-let supabaseAdminInstance: ReturnType<typeof createClient> | null = null;
+// 전역 싱글톤 방식 - 단 하나의 클라이언트만 생성
+declare global {
+  var __supabase_client__: ReturnType<typeof createClient> | undefined;
+}
 
-// 일반 사용자용 클라이언트
-export const supabase = (() => {
+// 단일 클라이언트 생성 함수
+function createSupabaseClient() {
+  // 서버 사이드
   if (typeof window === 'undefined') {
-    // 서버 사이드에서는 매번 새 인스턴스 생성
-    return createClient(supabaseUrl, supabaseAnonKey, {
+    return createClient(supabaseUrl!, supabaseAnonKey!, {
       auth: {
         persistSession: false,
         autoRefreshToken: false
@@ -40,57 +41,49 @@ export const supabase = (() => {
     });
   }
   
-  // 클라이언트 사이드에서만 싱글톤 사용
-  if (!supabaseInstance) {
-    try {
-      supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          storageKey: 'supabase.auth.token',
-          detectSessionInUrl: false // URL에서 세션 감지 비활성화로 중복 방지
-        }
-      });
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Supabase client initialized successfully');
+  // 클라이언트 사이드 - 완전한 싱글톤
+  if (!globalThis.__supabase_client__) {
+    console.log('🚀 Creating SINGLE Supabase client instance');
+    
+    globalThis.__supabase_client__ = createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        storageKey: `sb-${supabaseUrl!.replace('https://', '').split('.')[0]}-auth-token`,
+        detectSessionInUrl: false,
+        flowType: 'pkce'
       }
-    } catch (error) {
-      console.error('Error initializing Supabase client:', error);
-      throw error;
-    }
+    });
+  } else {
+    console.log('♻️ Reusing existing Supabase client');
   }
-  return supabaseInstance;
-})();
+  
+  return globalThis.__supabase_client__;
+}
 
-// 관리자 권한이 필요한 작업용 클라이언트
-export const supabaseAdmin = (() => {
-  if (typeof window === 'undefined') {
-    // 서버 사이드에서는 매번 새 인스턴스 생성
-    return createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {
+// 유일한 클라이언트 인스턴스
+export const supabase = createSupabaseClient();
+
+// Admin 클라이언트는 서버에서만 생성하는 함수로 변경
+export function createAdminClient() {
+  if (typeof window !== 'undefined') {
+    throw new Error('Admin client should only be used on server side');
+  }
+  
+  return createClient(
+    supabaseUrl!,
+    supabaseServiceKey || supabaseAnonKey!,
+    {
       auth: {
         autoRefreshToken: false,
         persistSession: false
       }
-    });
-  }
-  
-  // 클라이언트 사이드에서만 싱글톤 사용
-  if (!supabaseAdminInstance) {
-    try {
-      supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-          storageKey: 'supabase.admin.token'
-        }
-      });
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Supabase admin client initialized successfully');
-      }
-    } catch (error) {
-      console.error('Error initializing Supabase admin client:', error);
-      throw error;
     }
-  }
-  return supabaseAdminInstance;
-})(); 
+  );
+}
+
+// 기존 호환성을 위한 더미 (사용하지 말 것)
+export const supabaseAdmin = {
+  from: () => { throw new Error('Use createAdminClient() in API routes instead'); },
+  auth: { admin: () => { throw new Error('Use createAdminClient() in API routes instead'); } }
+} as any; 
