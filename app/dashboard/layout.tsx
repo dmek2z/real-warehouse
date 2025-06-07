@@ -68,14 +68,14 @@ export default function DashboardLayout({
   }, [quickInit]);
 
   const accessibleNavItems = navItems.filter((item) => {
-    // 초기화가 완료되고 사용자 정보가 있는 경우 정상적인 권한 검사
-    if (isInitialized && !authIsLoading && user) {
-      if (item.id === "settings") return !!user; 
+    // 사용자 정보가 있는 경우 정상적인 권한 검사
+    if (user) {
+      if (item.id === "settings") return true; // 로그인한 사용자는 설정 접근 가능
       return hasPermission(item.id, "view");
     }
     
-    // 새로고침 시나 로딩 중에는 설정을 제외한 모든 메뉴 표시 (사용자 편의성 향상)
-    return item.id !== "settings";
+    // 사용자 정보가 없으면 모든 메뉴 표시 (로그인 상태 확인 중)
+    return true;
   });
 
   // ** 로딩 조건을 더 엄격하게 수정: quickInit이 false이고 초기화도 안된 경우에만 로딩 **

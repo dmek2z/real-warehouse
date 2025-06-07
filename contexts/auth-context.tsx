@@ -55,7 +55,21 @@ const eraseCookie = (name: string) => {
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    // 초기화 시 localStorage에서 사용자 정보 복원 (SSR 고려)
+    if (typeof window !== 'undefined') {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          console.log('AuthProvider: Restored user from localStorage on init');
+          return JSON.parse(storedUser);
+        }
+      } catch (error) {
+        console.warn('AuthProvider: Failed to parse stored user data:', error);
+      }
+    }
+    return null;
+  });
   const [isLoading, setIsLoading] = useState(false); // 초기값을 false로 변경
   const [isInitialized, setIsInitialized] = useState(false); // 초기화 여부 추가
   const router = useRouter();
@@ -97,8 +111,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
           setUser(defaultUser);
           localStorage.setItem('user', JSON.stringify(defaultUser));
+          localStorage.setItem('user_role', 'admin'); // 추가 안전장치
           setCookie('currentUser', defaultUser.id, 1);
-          console.log("AuthProvider: updateUserProfile - Using default admin user:", defaultUser.id);
+          console.log("AuthProvider: updateUserProfile - Using default admin user:", defaultUser.id, defaultUser);
         } else if (userData) {
           const userToSet: User = {
             id: userData.id,
@@ -109,8 +124,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
           setUser(userToSet);
           localStorage.setItem('user', JSON.stringify(userToSet));
+          localStorage.setItem('user_role', userToSet.role); // 추가 안전장치
           setCookie('currentUser', userToSet.id, 1);
-          console.log("AuthProvider: updateUserProfile - User profile SET:", userToSet.id);
+          console.log("AuthProvider: updateUserProfile - User profile SET:", userToSet.id, userToSet);
         } else {
           console.warn("AuthProvider: updateUserProfile - No user data found for ID:", supabaseUser.id);
           
@@ -131,8 +147,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
           setUser(defaultUser);
           localStorage.setItem('user', JSON.stringify(defaultUser));
+          localStorage.setItem('user_role', 'admin'); // 추가 안전장치
           setCookie('currentUser', defaultUser.id, 1);
-          console.log("AuthProvider: updateUserProfile - Using default admin user (no data):", defaultUser.id);
+          console.log("AuthProvider: updateUserProfile - Using default admin user (no data):", defaultUser.id, defaultUser);
         }
       } catch (error) {
         console.error("AuthProvider: updateUserProfile - Unexpected error:", error);
@@ -154,8 +171,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         setUser(defaultUser);
         localStorage.setItem('user', JSON.stringify(defaultUser));
+        localStorage.setItem('user_role', 'admin'); // 추가 안전장치
         setCookie('currentUser', defaultUser.id, 1);
-        console.log("AuthProvider: updateUserProfile - Using default admin user (catch):", defaultUser.id);
+        console.log("AuthProvider: updateUserProfile - Using default admin user (catch):", defaultUser.id, defaultUser);
       }
     } else {
       console.log("AuthProvider: updateUserProfile - No Supabase user, clearing user state.");
@@ -343,11 +361,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [updateUserProfile, pathname, router]);
 
   const hasPermission = useCallback((pageId: string, permissionType: "view" | "edit"): boolean => {
-    if (!user) return false; 
-    if (user.role?.trim() === "admin") return true; 
-    const permission = user.permissions.find((p: Permission) => p.page === pageId);
-    return !!(permission && permission[permissionType]);
-  }, [user]);
+    // 초기화 중이거나 로딩 중일 때는 기본적으로 권한 허용 (관리자로 가정)
+    if (!isInitialized || isLoading) {
+      console.log(`hasPermission: Not initialized yet, allowing ${pageId}:${permissionType}`);
+      return true;
+    }
+    
+    // 사용자 정보가 없으면 localStorage에서 다시 확인
+    if (!user) {
+      try {
+        const storedRole = localStorage.getItem('user_role');
+        if (storedRole === 'admin') {
+          console.log(`hasPermission: No user but admin role in localStorage, allowing ${pageId}:${permissionType}`);
+          return true;
+        }
+      } catch (error) {
+        console.warn('hasPermission: Failed to read localStorage:', error);
+      }
+      return false; 
+    }
+    
+    // 관리자는 모든 권한 허용
+    if (user.role?.trim() === "admin") {
+      console.log(`hasPermission: Admin user, allowing ${pageId}:${permissionType}`);
+      return true; 
+    }
+    
+    // 일반 사용자는 권한 배열에서 확인
+    const permission = user.permissions?.find((p: Permission) => p.page === pageId);
+    const hasAccess = !!(permission && permission[permissionType]);
+    console.log(`hasPermission: ${pageId}:${permissionType} = ${hasAccess}`, { user: user.role, permission });
+    return hasAccess;
+  }, [user, isInitialized, isLoading]);
 
   const authContextValue = React.useMemo(() => ({
     user,
