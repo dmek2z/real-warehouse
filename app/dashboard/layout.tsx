@@ -68,13 +68,14 @@ export default function DashboardLayout({
   }, [quickInit]);
 
   const accessibleNavItems = navItems.filter((item) => {
-    // quickInit이 true이거나 정상적으로 초기화가 완료된 경우
-    if (quickInit || (isInitialized && !authIsLoading)) {
+    // 초기화가 완료되고 사용자 정보가 있는 경우 정상적인 권한 검사
+    if (isInitialized && !authIsLoading && user) {
       if (item.id === "settings") return !!user; 
       return hasPermission(item.id, "view");
     }
-    // 로딩 중이거나 초기화되지 않았으면 기본 메뉴들만 표시
-    return ["dashboard", "racks", "products"].includes(item.id);
+    
+    // 새로고침 시나 로딩 중에는 설정을 제외한 모든 메뉴 표시 (사용자 편의성 향상)
+    return item.id !== "settings";
   });
 
   // ** 로딩 조건을 더 엄격하게 수정: quickInit이 false이고 초기화도 안된 경우에만 로딩 **
