@@ -9,7 +9,7 @@ import {
   addUser as apiAddUser, updateUser as apiUpdateUser, deleteUser as apiDeleteUser,
   addProductCode as apiAddProductCode, updateProductCode as apiUpdateProductCode, deleteProductCode as apiDeleteProductCode
 } from '@/lib/api';
-import { supabase, supabaseAdmin } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient';
 
 // Types
 export interface Product {
@@ -226,12 +226,12 @@ export function StorageProvider({ children }: StorageProviderProps) {
           productCodesDataDb, 
           activityLogsDataDb
         ] = await Promise.all([
-          supabaseAdmin.from('products').select('*'),
-          supabaseAdmin.from('racks').select('*, rack_products(product_id, floor, inbound_date, outbound_date)'),
-          supabaseAdmin.from('categories').select('*').order('name'),
-          supabaseAdmin.from('users').select('*').order('name'),
-          supabaseAdmin.from('product_codes').select('*, category_id').order('code'),
-          supabaseAdmin.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(50)
+          supabase.from('products').select('*'),
+          supabase.from('racks').select('*, rack_products(product_id, floor, inbound_date, outbound_date)'),
+          supabase.from('categories').select('*').order('name'),
+          supabase.from('users').select('*').order('name'),
+          supabase.from('product_codes').select('*, category_id').order('code'),
+          supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(50)
         ]);
 
         const errors = [
@@ -259,9 +259,9 @@ export function StorageProvider({ children }: StorageProviderProps) {
       
         setProductsState((productsDataDb.data?.map(mapProductFromDb) || []) as Product[]);
 
-      const mappedRacks = racksDataDb.data ? racksDataDb.data.map(rack => {
+      const mappedRacks = racksDataDb.data ? racksDataDb.data.map((rack: any) => {
         const rackProducts = (rack.rack_products || []).map((rp: any) => {
-            const productDetail = productsDataDb.data?.find(p => p.id === rp.product_id);
+            const productDetail = productsDataDb.data?.find((p: any) => p.id === rp.product_id);
             return {
                 id: rp.product_id, 
                 code: productDetail?.code || 'N/A', 
@@ -282,13 +282,13 @@ export function StorageProvider({ children }: StorageProviderProps) {
       }) : [];
       setRacksState(mappedRacks as Rack[]);
 
-      setCategoriesState((categoriesDataDb.data || []).map(c => ({
+      setCategoriesState((categoriesDataDb.data || []).map((c: any) => ({
         id: c.id,
         name: c.name,
         created_at: c.created_at,
       })) as Category[]);
 
-      setUsersState((usersDataDb.data || []).map(u => ({
+      setUsersState((usersDataDb.data || []).map((u: any) => ({
         id: u.id,
         email: u.email,
         name: u.name,

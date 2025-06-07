@@ -90,31 +90,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (userFetchError) {
           // DB 권한 문제는 예상된 상황이므로 warning으로 처리
           if (userFetchError.message.includes('permission denied')) {
-            console.warn("AuthProvider: Database not configured, using fallback admin user");
+            console.warn("AuthProvider: Database not configured, checking localStorage for user data");
           } else {
             console.error("AuthProvider: updateUserProfile - Error fetching user data:", userFetchError.message);
           }
           
-          // 에러 발생 시 기본 관리자 사용자로 처리 (임시 해결책)
+          // localStorage에서 사용자 권한 정보를 찾아보기
+          try {
+            // 우선 사용자별 권한 정보 확인
+            const userPermissionKey = `user_permissions_${supabaseUser.id}`;
+            const storedPermissionData = localStorage.getItem(userPermissionKey);
+            
+            if (storedPermissionData) {
+              const parsedUser = JSON.parse(storedPermissionData);
+              console.log("AuthProvider: Using stored permission data:", parsedUser);
+              setUser(parsedUser);
+              localStorage.setItem('user', JSON.stringify(parsedUser));
+              setCookie('currentUser', parsedUser.id, 1);
+              return;
+            }
+            
+            // 일반 user 데이터 확인
+            const storedUserData = localStorage.getItem('user');
+            if (storedUserData) {
+              const parsedUser = JSON.parse(storedUserData);
+              if (parsedUser.id === supabaseUser.id) {
+                console.log("AuthProvider: Using stored user data with original permissions:", parsedUser);
+                setUser(parsedUser);
+                setCookie('currentUser', parsedUser.id, 1);
+                return;
+              }
+            }
+          } catch (error) {
+            console.warn("AuthProvider: Failed to parse stored user data:", error);
+          }
+          
+          // localStorage에 데이터가 없으면 제한된 기본 권한 부여
           const defaultUser: User = {
             id: supabaseUser.id,
             email: supabaseUser.email || '',
             name: supabaseUser.email?.split('@')[0] || 'Unknown User',
-            role: 'admin',
+            role: 'user',
             permissions: [
-              {"page": "dashboard", "view": true, "edit": true},
-              {"page": "racks", "view": true, "edit": true},
-              {"page": "products", "view": true, "edit": true},
-              {"page": "history", "view": true, "edit": true},
-              {"page": "users", "view": true, "edit": true},
-              {"page": "settings", "view": true, "edit": true}
+              {"page": "dashboard", "view": true, "edit": false}
             ]
           };
           setUser(defaultUser);
           localStorage.setItem('user', JSON.stringify(defaultUser));
-          localStorage.setItem('user_role', 'admin'); // 추가 안전장치
+          localStorage.setItem('user_role', 'user');
           setCookie('currentUser', defaultUser.id, 1);
-          console.log("AuthProvider: updateUserProfile - Using default admin user:", defaultUser.id, defaultUser);
+          console.log("AuthProvider: updateUserProfile - Using limited default user:", defaultUser.id, defaultUser);
         } else if (userData) {
           const userToSet: User = {
             id: userData.id,
@@ -131,50 +156,100 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           console.warn("AuthProvider: updateUserProfile - No user data found for ID:", supabaseUser.id);
           
-          // 데이터가 없을 때도 기본 사용자로 처리
+          // localStorage에서 사용자 권한 정보를 찾아보기
+          try {
+            // 우선 사용자별 권한 정보 확인
+            const userPermissionKey = `user_permissions_${supabaseUser.id}`;
+            const storedPermissionData = localStorage.getItem(userPermissionKey);
+            
+            if (storedPermissionData) {
+              const parsedUser = JSON.parse(storedPermissionData);
+              console.log("AuthProvider: Using stored permission data (no DB data):", parsedUser);
+              setUser(parsedUser);
+              localStorage.setItem('user', JSON.stringify(parsedUser));
+              setCookie('currentUser', parsedUser.id, 1);
+              return;
+            }
+            
+            // 일반 user 데이터 확인
+            const storedUserData = localStorage.getItem('user');
+            if (storedUserData) {
+              const parsedUser = JSON.parse(storedUserData);
+              if (parsedUser.id === supabaseUser.id) {
+                console.log("AuthProvider: Using stored user data with original permissions (no DB data):", parsedUser);
+                setUser(parsedUser);
+                setCookie('currentUser', parsedUser.id, 1);
+                return;
+              }
+            }
+          } catch (error) {
+            console.warn("AuthProvider: Failed to parse stored user data (no DB data):", error);
+          }
+          
+          // localStorage에 데이터가 없을 때 제한된 기본 권한 부여
           const defaultUser: User = {
             id: supabaseUser.id,
             email: supabaseUser.email || '',
             name: supabaseUser.email?.split('@')[0] || 'Unknown User',
-            role: 'admin',
+            role: 'user',
             permissions: [
-              {"page": "dashboard", "view": true, "edit": true},
-              {"page": "racks", "view": true, "edit": true},
-              {"page": "products", "view": true, "edit": true},
-              {"page": "history", "view": true, "edit": true},
-              {"page": "users", "view": true, "edit": true},
-              {"page": "settings", "view": true, "edit": true}
+              {"page": "dashboard", "view": true, "edit": false}
             ]
           };
           setUser(defaultUser);
           localStorage.setItem('user', JSON.stringify(defaultUser));
-          localStorage.setItem('user_role', 'admin'); // 추가 안전장치
+          localStorage.setItem('user_role', 'user');
           setCookie('currentUser', defaultUser.id, 1);
-          console.log("AuthProvider: updateUserProfile - Using default admin user (no data):", defaultUser.id, defaultUser);
+          console.log("AuthProvider: updateUserProfile - Using limited default user (no data):", defaultUser.id, defaultUser);
         }
       } catch (error) {
         console.error("AuthProvider: updateUserProfile - Unexpected error:", error);
         
-        // 예외 발생 시에도 기본 사용자로 처리
+        // localStorage에서 사용자 권한 정보를 찾아보기
+        try {
+          // 우선 사용자별 권한 정보 확인
+          const userPermissionKey = `user_permissions_${supabaseUser.id}`;
+          const storedPermissionData = localStorage.getItem(userPermissionKey);
+          
+          if (storedPermissionData) {
+            const parsedUser = JSON.parse(storedPermissionData);
+            console.log("AuthProvider: Using stored permission data (catch):", parsedUser);
+            setUser(parsedUser);
+            localStorage.setItem('user', JSON.stringify(parsedUser));
+            setCookie('currentUser', parsedUser.id, 1);
+            return;
+          }
+          
+          // 일반 user 데이터 확인
+          const storedUserData = localStorage.getItem('user');
+          if (storedUserData) {
+            const parsedUser = JSON.parse(storedUserData);
+            if (parsedUser.id === supabaseUser.id) {
+              console.log("AuthProvider: Using stored user data with original permissions (catch):", parsedUser);
+              setUser(parsedUser);
+              setCookie('currentUser', parsedUser.id, 1);
+              return;
+            }
+          }
+        } catch (storageError) {
+          console.warn("AuthProvider: Failed to parse stored user data (catch):", storageError);
+        }
+        
+        // 예외 발생 시 제한된 기본 권한 부여
         const defaultUser: User = {
           id: supabaseUser.id,
           email: supabaseUser.email || '',
           name: supabaseUser.email?.split('@')[0] || 'Unknown User',
-          role: 'admin',
+          role: 'user',
           permissions: [
-            {"page": "dashboard", "view": true, "edit": true},
-            {"page": "racks", "view": true, "edit": true},
-            {"page": "products", "view": true, "edit": true},
-            {"page": "history", "view": true, "edit": true},
-            {"page": "users", "view": true, "edit": true},
-            {"page": "settings", "view": true, "edit": true}
+            {"page": "dashboard", "view": true, "edit": false}
           ]
         };
         setUser(defaultUser);
         localStorage.setItem('user', JSON.stringify(defaultUser));
-        localStorage.setItem('user_role', 'admin'); // 추가 안전장치
+        localStorage.setItem('user_role', 'user');
         setCookie('currentUser', defaultUser.id, 1);
-        console.log("AuthProvider: updateUserProfile - Using default admin user (catch):", defaultUser.id, defaultUser);
+        console.log("AuthProvider: updateUserProfile - Using limited default user (catch):", defaultUser.id, defaultUser);
       }
     } else {
       console.log("AuthProvider: updateUserProfile - No Supabase user, clearing user state.");

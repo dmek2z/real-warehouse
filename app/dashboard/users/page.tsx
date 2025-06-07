@@ -474,6 +474,24 @@ export default function UsersPage() {
       // newUser가 성공적으로 생성된 경우에만 추가
       if (newUser) {
         await addUser(newUser)
+        
+        // 생성된 사용자의 권한 정보를 localStorage에 저장 (로그인 시 사용)
+        try {
+          const userPermissionKey = `user_permissions_${newUser.id}`;
+          const permissionData = {
+            id: newUser.id,
+            email: newUser.email,
+            name: newUser.name,
+            role: newUser.role,
+            permissions: newUser.permissions,
+            status: newUser.status
+          };
+          localStorage.setItem(userPermissionKey, JSON.stringify(permissionData));
+          console.log('✅ 사용자 권한 정보 localStorage에 저장:', userPermissionKey, permissionData);
+        } catch (error) {
+          console.warn('사용자 권한 정보 저장 실패:', error);
+        }
+        
         addToast({
           title: "✅ 사용자 추가 완료",
           description: `${newUser.name} 사용자가 시스템에 추가되었습니다.`,
