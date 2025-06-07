@@ -41,24 +41,35 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const [forceShow, setForceShow] = useState(false);
+  const [quickInit, setQuickInit] = useState(false); // 빠른 초기화 상태
   const { user, logout, isLoading: authIsLoading, isInitialized, hasPermission } = useAuth();
 
-  // 최종 안전장치: 3초 후에도 로딩 중이면 강제로 표시
+  // 새로고침 시 localStorage에서 빠르게 사용자 정보 로드
   useEffect(() => {
-    const finalSafetyTimeout = setTimeout(() => {
-      if (!isInitialized || authIsLoading) {
-        console.warn('DashboardLayout: Final safety timeout - forcing display');
-        setForceShow(true);
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser && !quickInit) {
+        setQuickInit(true);
+        console.log('DashboardLayout: Quick initialization with localStorage user');
       }
-    }, 3000);
+    } catch (error) {
+      console.warn('DashboardLayout: Failed to read localStorage:', error);
+    }
+    
+    // 100ms 후 강제로 quickInit을 true로 설정 (로딩 상태 단축)
+    const quickTimeout = setTimeout(() => {
+      if (!quickInit) {
+        setQuickInit(true);
+        console.log('DashboardLayout: Quick timeout - forcing display');
+      }
+    }, 100);
 
-    return () => clearTimeout(finalSafetyTimeout);
-  }, [isInitialized, authIsLoading]);
+    return () => clearTimeout(quickTimeout);
+  }, [quickInit]);
 
   const accessibleNavItems = navItems.filter((item) => {
-    // 강제 표시 상태이거나 초기화가 완료되고 로딩이 끝났을 때만 권한 검사
-    if (forceShow || (isInitialized && !authIsLoading)) {
+    // quickInit이 true이거나 정상적으로 초기화가 완료된 경우
+    if (quickInit || (isInitialized && !authIsLoading)) {
       if (item.id === "settings") return !!user; 
       return hasPermission(item.id, "view");
     }
@@ -66,9 +77,8 @@ export default function DashboardLayout({
     return ["dashboard", "racks", "products"].includes(item.id);
   });
 
-  // ** 로딩 조건 변경: 초기화되지 않았거나 authIsLoading이 true인 동안만 로딩 화면 표시 **
-  // forceShow가 true이면 강제로 페이지 표시
-  if ((!isInitialized || authIsLoading) && !forceShow) {
+  // ** 로딩 조건을 더 엄격하게 수정: quickInit이 false이고 초기화도 안된 경우에만 로딩 **
+  if (!quickInit && (!isInitialized || authIsLoading)) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -81,13 +91,6 @@ export default function DashboardLayout({
       </div>
     );
   }
-
-  // ** authIsLoading이 false가 된 후, user가 없으면 DashboardLogic에서 로그인 페이지로 보낼 것임 **
-  // ** 또는 여기서 명시적으로 처리할 수도 있지만, DashboardLogic의 역할과 중복될 수 있음 **
-  // if (!user) {
-  //   // router.replace('/login'); // DashboardLogic에서 처리하도록 유도
-  //   return <p>Redirecting to login (user is null)...</p>; // 혹은 DashboardLogic이 children을 렌더링하지 않도록
-  // }
 
   return (
     <StorageProvider>

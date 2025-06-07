@@ -259,7 +259,7 @@ export function StorageProvider({ children }: StorageProviderProps) {
       
         setProductsState((productsDataDb.data?.map(mapProductFromDb) || []) as Product[]);
 
-      const mappedRacks = (racksDataDb.data || []).map(rack => {
+      const mappedRacks = racksDataDb.data ? racksDataDb.data.map(rack => {
         const rackProducts = (rack.rack_products || []).map((rp: any) => {
             const productDetail = productsDataDb.data?.find(p => p.id === rp.product_id);
             return {
@@ -279,7 +279,7 @@ export function StorageProvider({ children }: StorageProviderProps) {
             capacity: rack.capacity || 4,
             line: rack.line,
         };
-      });
+      }) : [];
       setRacksState(mappedRacks as Rack[]);
 
       setCategoriesState((categoriesDataDb.data || []).map(c => ({
@@ -322,7 +322,7 @@ export function StorageProvider({ children }: StorageProviderProps) {
         product_id: log.product_id || 'N/A', 
         rack_id: log.rack_id, 
         type: log.action, 
-        quantity: parseInt(log.details?.match(/\d+/)?.[0] || log.action?.match(/\d+/)?.[0] || "0"), // details 우선, 없으면 action에서 파싱
+        quantity: parseInt(String(log.details || log.action || "").match(/\d+/)?.[0] || "0"), // details 우선, 없으면 action에서 파싱
         moved_at: log.created_at,
         details: log.details || log.action,
       })) as StockMovement[]);
@@ -341,7 +341,7 @@ export function StorageProvider({ children }: StorageProviderProps) {
     }
   }, []); // 의존성 배열 비워서 마운트 시에만 함수 정의
 
-  const debouncedRefreshData = useCallback(debounce(refreshData, 1000), [refreshData]);
+  const debouncedRefreshData = useCallback(debounce(refreshData, 1000), []);
 
   useEffect(() => {
     refreshData(); // 초기 데이터 로드
@@ -350,14 +350,14 @@ export function StorageProvider({ children }: StorageProviderProps) {
       .channel('public-schema-changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
         console.log('StorageContext: DB Change received!', payload);
-        debouncedRefreshData();
+        refreshData(); // debounced 대신 직접 호출로 무한루프 방지
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(changes);
     };
-  }, [refreshData, debouncedRefreshData]); // refreshData와 debouncedRefreshData를 의존성 배열에 추가
+  }, []); // 빈 의존성 배열로 마운트 시에만 실행
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -369,7 +369,7 @@ export function StorageProvider({ children }: StorageProviderProps) {
     }, 60 * 1000); 
 
     return () => clearInterval(intervalId);
-  }, [lastRefresh, refreshData]);
+  }, [lastRefresh]); // refreshData 의존성 제거
 
   // Products
   const addProductToStorage = async (product: Omit<Product, 'id'>): Promise<Product | undefined> => {
@@ -414,7 +414,7 @@ export function StorageProvider({ children }: StorageProviderProps) {
     try {
       try {
         // apiAddRack은 이미 lib/api.ts에서 'products'를 제외한 객체를 받도록 수정됨
-        const result = await apiAddRack(rack);
+        const result = await apiAddRack(rack as Omit<Rack, 'id'>);
         if (result && result.length > 0) {
           // debouncedRefreshData();
           return {...result[0], products: []}; // 클라이언트 타입에 맞게 products: [] 추가
@@ -593,7 +593,7 @@ export function StorageProvider({ children }: StorageProviderProps) {
   const addCategoryToStorage = async (category: Omit<Category, 'id' | 'created_at'>): Promise<Category | undefined> => {
     try {
       try {
-        const result = await apiAddCategory(category);
+        const result = await apiAddCategory(category as Omit<Category, 'id'>);
         if (result && result.length > 0) {
           // debouncedRefreshData();
           return result[0];
