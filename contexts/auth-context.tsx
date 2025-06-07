@@ -349,21 +349,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
-    setIsLoading(true);
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error("AuthProvider: logout - Error:", error.message);
-      await updateUserProfile(null); 
+    try {
+      setIsLoading(true);
+      console.log("AuthProvider: logout - Starting logout process");
+      
+      // 로컬 스토리지 정리 먼저 수행
+      localStorage.removeItem('user');
+      localStorage.removeItem('user_role');
+      eraseCookie('currentUser');
+      
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("AuthProvider: logout - Supabase signOut error:", error.message);
+      }
+      
+      // 무조건 로컬 상태 정리
+      setUser(null);
       setIsLoading(false);
-      if (pathname !== '/login') router.push('/login');
+      
+      console.log("AuthProvider: logout - Completed, redirecting to login");
+      if (pathname !== '/login') {
+        router.push('/login');
+      }
+      
+    } catch (error: any) {
+      console.error("AuthProvider: logout - Unexpected error:", error);
+      // 에러가 발생해도 로그아웃 상태로 만들기
+      localStorage.removeItem('user');
+      localStorage.removeItem('user_role');
+      eraseCookie('currentUser');
+      setUser(null);
+      setIsLoading(false);
+      
+      if (pathname !== '/login') {
+        router.push('/login');
+      }
     }
-    // 성공 시 onAuthStateChange가 SIGNED_OUT 처리
-  }, [updateUserProfile, pathname, router]);
+  }, [pathname, router]);
 
   const hasPermission = useCallback((pageId: string, permissionType: "view" | "edit"): boolean => {
     // 초기화 중이거나 로딩 중일 때는 기본적으로 권한 허용 (관리자로 가정)
     if (!isInitialized || isLoading) {
-      console.log(`hasPermission: Not initialized yet, allowing ${pageId}:${permissionType}`);
+      // 로그 빈도 줄이기 - 설정 페이지는 로그 생략
+      if (pageId !== 'settings') {
+        console.log(`hasPermission: Not initialized yet, allowing ${pageId}:${permissionType}`);
+      }
       return true;
     }
     
@@ -372,7 +402,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const storedRole = localStorage.getItem('user_role');
         if (storedRole === 'admin') {
-          console.log(`hasPermission: No user but admin role in localStorage, allowing ${pageId}:${permissionType}`);
           return true;
         }
       } catch (error) {
@@ -383,14 +412,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // 관리자는 모든 권한 허용
     if (user.role?.trim() === "admin") {
-      console.log(`hasPermission: Admin user, allowing ${pageId}:${permissionType}`);
       return true; 
     }
     
     // 일반 사용자는 권한 배열에서 확인
     const permission = user.permissions?.find((p: Permission) => p.page === pageId);
     const hasAccess = !!(permission && permission[permissionType]);
-    console.log(`hasPermission: ${pageId}:${permissionType} = ${hasAccess}`, { user: user.role, permission });
     return hasAccess;
   }, [user, isInitialized, isLoading]);
 

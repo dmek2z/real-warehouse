@@ -330,17 +330,57 @@ export default function UsersPage() {
         return;
       }
 
-      // 사용자 데이터를 직접 생성 (Auth 권한 문제 회피)
-      const newUserId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      const newUser = {
-        id: newUserId,
-        email: formEmail,
-        name: formName,
-        role: formRole,
-        status: "active" as const,
-        permissions: formPermissions,
+      // Supabase Auth에 사용자 생성 (서비스 롤 키 사용)
+      let newUser;
+      try {
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+          email: formEmail,
+          password: formPassword,
+          email_confirm: true,
+          user_metadata: {
+            name: formName,
+            role: formRole
+          }
+        });
+
+        if (authError) {
+          console.error('Supabase Auth error:', authError);
+          throw new Error(`사용자 생성 실패: ${authError.message}`);
+        }
+
+        if (!authData.user) {
+          throw new Error('사용자 데이터가 생성되지 않았습니다.');
+        }
+
+        newUser = {
+          id: authData.user.id,
+          email: formEmail,
+          name: formName,
+          role: formRole,
+          status: "active" as const,
+          permissions: formPermissions,
+        }
+      } catch (authError: any) {
+        // Auth API 실패 시 fallback으로 로컬 생성
+        console.warn('Auth API failed, creating local user:', authError.message);
+        const newUserId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        newUser = {
+          id: newUserId,
+          email: formEmail,
+          name: formName,
+          role: formRole,
+          status: "active" as const,
+          permissions: formPermissions,
+        }
+        
+        addToast({
+          title: "주의",
+          description: "사용자가 생성되었지만 로그인 기능은 제한됩니다.",
+          variant: "destructive",
+        })
       }
+      
       await addUser(newUser)
       addToast({
         title: "사용자 추가 완료",

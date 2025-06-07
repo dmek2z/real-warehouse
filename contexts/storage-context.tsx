@@ -93,7 +93,7 @@ interface StorageContextType {
   deleteCategory: (id: string) => Promise<void>
 
   users: User[]
-  addUser: (user: Omit<User, 'id'>) => Promise<User | undefined>
+  addUser: (user: Omit<User, 'id'> | User) => Promise<User | undefined>
   updateUser: (id: string, updates: Partial<User>) => Promise<void>
   deleteUser: (id: string) => Promise<void>
 
@@ -464,20 +464,25 @@ export function StorageProvider({ children }: StorageProviderProps) {
       
       // products가 있으면 로컬 상태만 업데이트 (DB에는 products 저장 안 함)
       if (products !== undefined) {
-        setRacks(prev => prev.map(rack =>
-          rack.id === id ? { ...rack, products } : rack
-        ));
+        setRacksState(prev => {
+          const newValue = prev.map(rack =>
+            rack.id === id ? { ...rack, products } : rack
+          );
+          saveToLocalStorage('tad_racks', newValue);
+          return newValue;
+        });
       }
       
       // debouncedRefreshData();
     } catch (dbError: any) {
       // DB 실패 시 로컬 fallback
-      setRacks(prev => prev.map(rack =>
-        rack.id === id ? { ...rack, ...updates } : rack
-      ));
-      saveToLocalStorage('tad_racks', racks.map(rack =>
-        rack.id === id ? { ...rack, ...updates } : rack
-      ));
+      setRacksState(prev => {
+        const newValue = prev.map(rack =>
+          rack.id === id ? { ...rack, ...updates } : rack
+        );
+        saveToLocalStorage('tad_racks', newValue);
+        return newValue;
+      });
       console.warn('updateRackInStorage: Updated local state only for ID:', id);
     }
   };
@@ -488,8 +493,11 @@ export function StorageProvider({ children }: StorageProviderProps) {
       // debouncedRefreshData();
     } catch (dbError: any) {
       // DB 실패 시 로컬 fallback
-      setRacks(prev => prev.filter(rack => rack.id !== id));
-      saveToLocalStorage('tad_racks', racks.filter(rack => rack.id !== id));
+      setRacksState(prev => {
+        const newValue = prev.filter(rack => rack.id !== id);
+        saveToLocalStorage('tad_racks', newValue);
+        return newValue;
+      });
       console.warn('deleteRackFromStorage: Removed from local state only for ID:', id);
     }
   };
@@ -628,7 +636,11 @@ export function StorageProvider({ children }: StorageProviderProps) {
         };
         
         // 로컬 상태에 직접 추가 (localStorage 동기화 포함)
-        setCategories(prev => [...prev, fallbackCategory]);
+        setCategoriesState(prev => {
+          const newValue = [...prev, fallbackCategory];
+          saveToLocalStorage('tad_categories', newValue);
+          return newValue;
+        });
         
         console.log('addCategoryToStorage: Added to local state only:', fallbackCategory);
         return fallbackCategory;
@@ -660,21 +672,51 @@ export function StorageProvider({ children }: StorageProviderProps) {
   };
 
   // Users
-  const addUserToStorage = async (user: Omit<User, 'id'>): Promise<User | undefined> => {
+  const addUserToStorage = async (user: Omit<User, 'id'> | User): Promise<User | undefined> => {
     try {
-      // DB에 저장 시 password는 해싱하거나 auth.users 테이블을 사용해야 함.
-      // 현재 users 테이블에 직접 저장하는 방식은 보안상 문제가 될 수 있으므로,
-      // 실제 API 호출 시 password는 제외하거나 별도 처리 필요.
-      const { password, ...userToInsert } = user;
-      const result = await apiAddUser(userToInsert as Omit<User, 'id' | 'password'>);
-      if (result && result.length > 0) {
-        return result[0];
+      // ID가 있는 경우 (Auth에서 생성된 사용자)와 없는 경우 처리
+      const hasId = 'id' in user && user.id;
+      
+      if (hasId) {
+        // Auth에서 생성된 사용자 - 직접 DB에 저장
+        const { password, ...userToInsert } = user;
+        const userWithoutId = { ...userToInsert };
+        delete (userWithoutId as any).id; // id 제거
+        
+        const result = await apiAddUser(userWithoutId as Omit<User, 'id' | 'password'>);
+        if (result && result.length > 0) {
+          // DB 결과에 원래 Auth ID 사용
+          return { ...result[0], id: user.id };
+        }
+        
+        // DB 실패 시 직접 로컬에 저장
+        const directUser: User = {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          status: user.status,
+          permissions: user.permissions,
+        };
+        setUsers(prev => {
+          const newValue = [...prev, directUser];
+          saveToLocalStorage('tad_users', newValue);
+          return newValue;
+        });
+        return directUser;
+      } else {
+        // 일반적인 사용자 생성
+        const { password, ...userToInsert } = user;
+        const result = await apiAddUser(userToInsert as Omit<User, 'id' | 'password'>);
+        if (result && result.length > 0) {
+          return result[0];
+        }
+        throw new Error('Failed to add user: No data returned');
       }
-      throw new Error('Failed to add user: No data returned');
     } catch (dbError: any) {
       // DB 실패 시 무조건 로컬 fallback
       const fallbackUser: User = {
-        id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: ('id' in user && user.id) || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         email: user.email,
         name: user.name,
         role: user.role,

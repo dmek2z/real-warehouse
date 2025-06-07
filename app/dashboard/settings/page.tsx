@@ -126,10 +126,17 @@ export default function SettingsPage() {
         return
       }
 
-      toast.success("비밀번호가 성공적으로 변경되었습니다.")
+      toast.success("비밀번호가 성공적으로 변경되었습니다. 새 비밀번호는 즉시 적용됩니다.")
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
+      
+      // 5초 후 자동으로 재로그인 권장 알림
+      setTimeout(() => {
+        toast.info("보안을 위해 로그아웃 후 새 비밀번호로 다시 로그인하는 것을 권장합니다.", {
+          duration: 8000
+        })
+      }, 2000)
     } catch (error) {
       console.error("비밀번호 변경 중 오류:", error)
       toast.error("비밀번호 변경 중 오류가 발생했습니다.")
